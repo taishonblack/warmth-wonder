@@ -182,13 +182,13 @@ export default function Home() {
             className="mb-3"
           />
           <div className="grid grid-cols-2 gap-3">
-            {freshFinds.map((find, index) => (
+            {freshFinds.map((find) => (
               <FindGridItem
                 key={find.id}
                 image={find.image}
                 posterName={find.posterName}
                 posterAvatar={find.posterAvatar}
-                aspectRatio={index % 3 === 0 ? "portrait" : "square"}
+                aspectRatio="square"
                 onClick={() => setSelectedFind(find)}
               />
             ))}
