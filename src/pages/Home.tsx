@@ -8,6 +8,7 @@ import { FindDetailPopup } from "@/components/FindDetailPopup";
 import { MarketDetailPopup } from "@/components/MarketDetailPopup";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useProximitySettings } from "@/hooks/useProximitySettings";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Import images
 import nearishLogo from "@/assets/nearish-logo.png";
@@ -101,18 +102,46 @@ export default function Home() {
   const [selectedMarket, setSelectedMarket] = useState<typeof nearbyMarkets[0] | null>(null);
   const { latitude, longitude, loading: geoLoading, error: geoError } = useGeolocation();
   const { radius } = useProximitySettings();
+  const isMobile = useIsMobile();
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm pt-4 pb-2 px-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <img src={nearishLogo} alt="Nearish logo" className="w-8 h-8 object-contain" />
-            <h1 className="font-serif text-2xl font-bold text-primary">nearish</h1>
+      {/* Header - only show on mobile, desktop uses sidebar */}
+      {isMobile && (
+        <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm pt-4 pb-2 px-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <img src={nearishLogo} alt="Nearish logo" className="w-8 h-8 object-contain" />
+              <h1 className="font-serif text-2xl font-bold text-primary">nearish</h1>
+            </div>
+            {/* Geolocation indicator */}
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              {geoLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Locating...</span>
+                </>
+              ) : geoError ? (
+                <>
+                  <MapPin className="w-4 h-4 text-accent" />
+                  <span className="text-xs">{geoError}</span>
+                </>
+              ) : (
+                <>
+                  <MapPin className="w-4 h-4 text-secondary" />
+                  <span className="text-xs">Within {radius} mi</span>
+                </>
+              )}
+            </div>
           </div>
-          {/* Geolocation indicator */}
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <SearchBar />
+        </header>
+      )}
+
+      {/* Desktop header with search */}
+      {!isMobile && (
+        <header className="mb-6 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {geoLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -121,21 +150,21 @@ export default function Home() {
             ) : geoError ? (
               <>
                 <MapPin className="w-4 h-4 text-accent" />
-                <span className="text-xs">{geoError}</span>
+                <span>{geoError}</span>
               </>
             ) : (
               <>
                 <MapPin className="w-4 h-4 text-secondary" />
-                <span className="text-xs">Within {radius} mi</span>
+                <span>Within {radius} mi</span>
               </>
             )}
           </div>
-        </div>
-        <SearchBar />
-      </header>
+          <SearchBar className="max-w-md flex-1" />
+        </header>
+      )}
 
       {/* Content */}
-      <div className="px-4 py-4 space-y-6">
+      <div className={isMobile ? "px-4 py-4 space-y-6" : "space-y-8"}>
         {/* Near You Section */}
         <section>
           <SectionHeader
@@ -143,7 +172,10 @@ export default function Home() {
             action={{ label: "See all", onClick: () => {} }}
             className="mb-3"
           />
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4">
+          <div className={isMobile 
+            ? "flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4"
+            : "grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+          }>
             {nearbyMarkets.map((market) => (
               <MarketCard
                 key={market.id}
@@ -152,6 +184,7 @@ export default function Home() {
                 distance={market.distance}
                 isOpen={market.isOpen}
                 onClick={() => setSelectedMarket(market)}
+                className={!isMobile ? "w-full" : undefined}
               />
             ))}
           </div>
@@ -164,7 +197,10 @@ export default function Home() {
             action={{ label: "See all", onClick: () => {} }}
             className="mb-3"
           />
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4">
+          <div className={isMobile 
+            ? "flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4"
+            : "grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+          }>
             {furtherOutMarkets.map((market) => (
               <MarketCard
                 key={market.id}
@@ -173,6 +209,7 @@ export default function Home() {
                 distance={market.distance}
                 isOpen={market.isOpen}
                 onClick={() => setSelectedMarket(market)}
+                className={!isMobile ? "w-full" : undefined}
               />
             ))}
           </div>
@@ -185,7 +222,10 @@ export default function Home() {
             action={{ label: "See all", onClick: () => {} }}
             className="mb-3"
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className={isMobile 
+            ? "grid grid-cols-2 gap-3"
+            : "grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
+          }>
             {freshFinds.map((find) => (
               <FindGridItem
                 key={find.id}
