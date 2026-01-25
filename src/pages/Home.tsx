@@ -10,6 +10,7 @@ import { useGeolocation } from "@/hooks/useGeolocation";
 import { useProximitySettings } from "@/hooks/useProximitySettings";
 
 // Import images
+import nearishLogo from "@/assets/nearish-logo.png";
 import market1 from "@/assets/market-1.jpg";
 import market2 from "@/assets/market-2.jpg";
 import market3 from "@/assets/market-3.jpg";
@@ -106,7 +107,10 @@ export default function Home() {
       {/* Header */}
       <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm pt-4 pb-2 px-4">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="font-serif text-2xl font-bold text-primary">nearish</h1>
+          <div className="flex items-center gap-2">
+            <img src={nearishLogo} alt="Nearish logo" className="w-8 h-8 object-contain" />
+            <h1 className="font-serif text-2xl font-bold text-primary">nearish</h1>
+          </div>
           {/* Geolocation indicator */}
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             {geoLoading ? (
