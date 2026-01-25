@@ -5,6 +5,7 @@ import { MarketCard } from "@/components/MarketCard";
 import { FindGridItem } from "@/components/FindGridItem";
 import { SectionHeader } from "@/components/SectionHeader";
 import { FindDetailPopup } from "@/components/FindDetailPopup";
+import { MarketDetailPopup } from "@/components/MarketDetailPopup";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useProximitySettings } from "@/hooks/useProximitySettings";
 
@@ -20,15 +21,15 @@ import find5 from "@/assets/find-5.jpg";
 import find6 from "@/assets/find-6.jpg";
 
 const nearbyMarkets = [
-  { id: "1", name: "Union Square Greenmarket", image: market1, distance: "0.3 mi", isOpen: true },
-  { id: "2", name: "Grand Army Plaza Market", image: market2, distance: "1.2 mi", isOpen: true },
-  { id: "3", name: "Prospect Park Market", image: market3, distance: "2.1 mi", isOpen: false },
+  { id: "1", name: "Union Square Greenmarket", image: market1, distance: "0.3 mi", isOpen: true, address: "E 17th St & Union Square W, New York, NY", hours: "Mon, Wed, Fri, Sat: 8am - 6pm", description: "NYC's largest farmers market featuring over 140 regional farmers and fishermen." },
+  { id: "2", name: "Grand Army Plaza Market", image: market2, distance: "1.2 mi", isOpen: true, address: "Grand Army Plaza, Brooklyn, NY", hours: "Saturdays: 8am - 4pm", description: "Brooklyn's premier greenmarket with organic produce and artisan goods." },
+  { id: "3", name: "Prospect Park Market", image: market3, distance: "2.1 mi", isOpen: false, address: "Prospect Park West, Brooklyn, NY", hours: "Sundays: 9am - 4pm", description: "Family-friendly market with local farms, live music, and prepared foods." },
 ];
 
 const furtherOutMarkets = [
-  { id: "4", name: "Westchester Farm Market", image: market2, distance: "22 mi", isOpen: true },
-  { id: "5", name: "Hudson Valley Harvest", image: market1, distance: "25 mi", isOpen: true },
-  { id: "6", name: "Long Island Organic Market", image: market3, distance: "28 mi", isOpen: true },
+  { id: "4", name: "Westchester Farm Market", image: market2, distance: "22 mi", isOpen: true, address: "123 Farm Road, Westchester, NY", hours: "Sat & Sun: 9am - 5pm", description: "Hudson Valley farms bringing fresh seasonal produce and dairy." },
+  { id: "5", name: "Hudson Valley Harvest", image: market1, distance: "25 mi", isOpen: true, address: "456 Valley Lane, Hudson, NY", hours: "Saturdays: 8am - 3pm", description: "Specializing in heirloom vegetables, pasture-raised meats, and artisan cheeses." },
+  { id: "6", name: "Long Island Organic Market", image: market3, distance: "28 mi", isOpen: true, address: "789 Organic Way, Long Island, NY", hours: "Sundays: 10am - 4pm", description: "100% certified organic produce from Long Island family farms." },
 ];
 
 const freshFinds = [
@@ -96,6 +97,7 @@ const freshFinds = [
 
 export default function Home() {
   const [selectedFind, setSelectedFind] = useState<typeof freshFinds[0] | null>(null);
+  const [selectedMarket, setSelectedMarket] = useState<typeof nearbyMarkets[0] | null>(null);
   const { latitude, longitude, loading: geoLoading, error: geoError } = useGeolocation();
   const { radius } = useProximitySettings();
 
@@ -145,6 +147,7 @@ export default function Home() {
                 image={market.image}
                 distance={market.distance}
                 isOpen={market.isOpen}
+                onClick={() => setSelectedMarket(market)}
               />
             ))}
           </div>
@@ -165,6 +168,7 @@ export default function Home() {
                 image={market.image}
                 distance={market.distance}
                 isOpen={market.isOpen}
+                onClick={() => setSelectedMarket(market)}
               />
             ))}
           </div>
@@ -197,6 +201,13 @@ export default function Home() {
         isOpen={!!selectedFind}
         onClose={() => setSelectedFind(null)}
         find={selectedFind}
+      />
+
+      {/* Market Detail Popup */}
+      <MarketDetailPopup
+        isOpen={!!selectedMarket}
+        onClose={() => setSelectedMarket(null)}
+        market={selectedMarket}
       />
     </div>
   );
