@@ -6,6 +6,7 @@ import { FindGridItem } from "@/components/FindGridItem";
 import { SectionHeader } from "@/components/SectionHeader";
 import { FindDetailPopup } from "@/components/FindDetailPopup";
 import { MarketDetailPopup } from "@/components/MarketDetailPopup";
+import { DesktopHeader } from "@/components/layout/DesktopHeader";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useProximitySettings } from "@/hooks/useProximitySettings";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -138,30 +139,8 @@ export default function Home() {
         </header>
       )}
 
-      {/* Desktop header with search */}
-      {!isMobile && (
-        <header className="mb-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            {geoLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Locating...</span>
-              </>
-            ) : geoError ? (
-              <>
-                <MapPin className="w-4 h-4 text-accent" />
-                <span>{geoError}</span>
-              </>
-            ) : (
-              <>
-                <MapPin className="w-4 h-4 text-secondary" />
-                <span>Within {radius} mi</span>
-              </>
-            )}
-          </div>
-          <SearchBar className="max-w-md flex-1" />
-        </header>
-      )}
+      {/* Desktop header */}
+      {!isMobile && <DesktopHeader />}
 
       {/* Content */}
       <div className={isMobile ? "px-4 py-4 space-y-6" : "space-y-8"}>
@@ -224,7 +203,7 @@ export default function Home() {
           />
           <div className={isMobile 
             ? "grid grid-cols-2 gap-3"
-            : "grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4"
+            : "grid grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
           }>
             {freshFinds.map((find) => (
               <FindGridItem
@@ -232,6 +211,9 @@ export default function Home() {
                 image={find.image}
                 posterName={find.posterName}
                 posterAvatar={find.posterAvatar}
+                caption={find.caption}
+                marketName={find.marketName}
+                thanksCount={find.thanksCount}
                 aspectRatio="square"
                 onClick={() => setSelectedFind(find)}
               />
