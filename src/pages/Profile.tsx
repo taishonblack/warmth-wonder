@@ -1,5 +1,6 @@
-import { Settings, ChevronRight } from "lucide-react";
+import { Settings, ChevronRight, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useProximitySettings, ProximityRadius } from "@/hooks/useProximitySettings";
 
 // Import images
 import find1 from "@/assets/find-1.jpg";
@@ -20,7 +21,11 @@ const badges = [
   { id: "3", emoji: "✨", label: "Community Favorite", description: "100+ thanks received" },
 ];
 
+const radiusOptions: ProximityRadius[] = [10, 20, 30];
+
 export default function Profile() {
+  const { radius, setRadius } = useProximitySettings();
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -71,6 +76,35 @@ export default function Profile() {
           Edit Profile
         </button>
       </div>
+
+      {/* Proximity Settings */}
+      <section className="px-4 py-4 border-t border-border">
+        <div className="flex items-center gap-2 mb-3">
+          <MapPin className="w-4 h-4 text-secondary" />
+          <h3 className="font-serif text-lg font-semibold text-foreground">
+            Discovery Radius
+          </h3>
+        </div>
+        <p className="text-sm text-muted-foreground mb-3">
+          Set how far to look for "Further out" markets
+        </p>
+        <div className="flex gap-2">
+          {radiusOptions.map((option) => (
+            <button
+              key={option}
+              onClick={() => setRadius(option)}
+              className={cn(
+                "flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all",
+                radius === option
+                  ? "bg-primary text-primary-foreground shadow-soft-md"
+                  : "bg-card text-foreground border border-border hover:bg-muted"
+              )}
+            >
+              {option} mi
+            </button>
+          ))}
+        </div>
+      </section>
 
       {/* Badges */}
       <section className="px-4 py-4 border-t border-border">
