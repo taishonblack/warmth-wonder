@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { MessageCircle, Plus, ThumbsUp, Clock, User } from "lucide-react";
+import { MessageCircle, Plus, ThumbsUp, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { QuestionDetailSheet } from "@/components/QuestionDetailSheet";
+import { NewQuestionModal } from "@/components/NewQuestionModal";
 
 interface Question {
   id: string;
@@ -14,7 +16,7 @@ interface Question {
   tags: string[];
 }
 
-const mockQuestions: Question[] = [
+const initialQuestions: Question[] = [
   {
     id: "1",
     author: "Sarah Chen",
@@ -22,7 +24,7 @@ const mockQuestions: Question[] = [
     title: "Best time to visit Union Square Greenmarket?",
     content: "I'm new to the area and wondering when's the best time to go for the freshest produce. Early morning or later in the day?",
     timestamp: "2 hours ago",
-    replies: 8,
+    replies: 2,
     likes: 12,
     tags: ["Union Square", "Tips"],
   },
@@ -33,7 +35,7 @@ const mockQuestions: Question[] = [
     title: "Where to find locally sourced honey?",
     content: "Looking for raw, unfiltered honey from local beekeepers. Any recommendations for markets that have good vendors?",
     timestamp: "5 hours ago",
-    replies: 15,
+    replies: 2,
     likes: 24,
     tags: ["Honey", "Local"],
   },
@@ -44,7 +46,7 @@ const mockQuestions: Question[] = [
     title: "Organic certification - how to verify?",
     content: "How do you know if a vendor is truly organic? Are there signs or certifications I should look for at farmers markets?",
     timestamp: "1 day ago",
-    replies: 22,
+    replies: 1,
     likes: 45,
     tags: ["Organic", "Tips"],
   },
@@ -55,17 +57,34 @@ const mockQuestions: Question[] = [
     title: "Best markets for artisan bread?",
     content: "I'm a bread lover! Which markets have the best sourdough and artisan bread vendors?",
     timestamp: "2 days ago",
-    replies: 19,
+    replies: 1,
     likes: 38,
     tags: ["Bread", "Artisan"],
   },
 ];
 
 export default function Forum() {
-  const [questions] = useState<Question[]>(mockQuestions);
+  const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
+  const [isNewQuestionOpen, setIsNewQuestionOpen] = useState(false);
 
-  const allTags = [...new Set(mockQuestions.flatMap((q) => q.tags))];
+  const handleNewQuestion = (data: { title: string; content: string; tags: string[] }) => {
+    const newQuestion: Question = {
+      id: `new-${Date.now()}`,
+      author: "You",
+      avatar: "https://i.pravatar.cc/150?img=68",
+      title: data.title,
+      content: data.content,
+      timestamp: "Just now",
+      replies: 0,
+      likes: 0,
+      tags: data.tags,
+    };
+    setQuestions([newQuestion, ...questions]);
+  };
+
+  const allTags = [...new Set(questions.flatMap((q) => q.tags))];
 
   const filteredQuestions = activeTag
     ? questions.filter((q) => q.tags.includes(activeTag))
@@ -77,7 +96,10 @@ export default function Forum() {
       <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm pt-4 pb-3 px-4 border-b border-border">
         <div className="flex items-center justify-between mb-3">
           <h1 className="font-serif text-2xl font-bold text-primary">Forum</h1>
-          <button className="flex items-center gap-1.5 px-3 py-2 bg-primary text-primary-foreground rounded-full text-sm font-medium hover:bg-primary/90 transition-colors">
+          <button 
+            onClick={() => setIsNewQuestionOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-primary text-primary-foreground rounded-full text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
             <Plus className="w-4 h-4" />
             Ask
           </button>
@@ -123,6 +145,7 @@ export default function Forum() {
         {filteredQuestions.map((question) => (
           <button
             key={question.id}
+            onClick={() => setSelectedQuestion(question)}
             className="w-full text-left p-4 bg-card rounded-2xl border border-border hover:border-primary/30 transition-colors"
           >
             {/* Author */}
@@ -177,6 +200,20 @@ export default function Forum() {
           </button>
         ))}
       </div>
+
+      {/* Question Detail Sheet */}
+      <QuestionDetailSheet
+        isOpen={!!selectedQuestion}
+        onClose={() => setSelectedQuestion(null)}
+        question={selectedQuestion}
+      />
+
+      {/* New Question Modal */}
+      <NewQuestionModal
+        isOpen={isNewQuestionOpen}
+        onClose={() => setIsNewQuestionOpen(false)}
+        onSubmit={handleNewQuestion}
+      />
     </div>
   );
 }
