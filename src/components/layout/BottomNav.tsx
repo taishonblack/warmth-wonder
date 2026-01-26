@@ -2,6 +2,7 @@ import { Home, Binoculars, Map, MessageCircle, User } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
+// Keep Profile in mobile nav since there's no dropdown
 const navItems = [
   { icon: Home, path: "/", label: "Explore" },
   { icon: Binoculars, path: "/finds", label: "Finds" },
