@@ -1,8 +1,9 @@
 import { FindCard } from "@/components/FindCard";
-import { SectionHeader } from "@/components/SectionHeader";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useFinds } from "@/hooks/useFinds";
+import { Loader2 } from "lucide-react";
 
-// Import images
+// Import images for fallback/mock data
 import find1 from "@/assets/find-1.jpg";
 import find2 from "@/assets/find-2.jpg";
 import find3 from "@/assets/find-3.jpg";
@@ -10,143 +11,71 @@ import find4 from "@/assets/find-4.jpg";
 import find5 from "@/assets/find-5.jpg";
 import find6 from "@/assets/find-6.jpg";
 
-const finds = [
+const mockFinds = [
   {
-    id: "1",
+    id: "mock-1",
     author: {
       name: "Sarah Chen",
       avatar: "https://i.pravatar.cc/150?img=1",
+      userId: "mock-user-1",
     },
     images: [find1],
     caption: "Found the most beautiful farm-fresh eggs at Union Square today! The yolks are so vibrant and orange. Perfect for weekend breakfast 🍳",
     marketName: "Union Square Greenmarket",
     thanksCount: 24,
     timestamp: "2 hours ago",
+    userHasThanked: false,
   },
   {
-    id: "2",
+    id: "mock-2",
     author: {
       name: "Marcus Rivera",
       avatar: "https://i.pravatar.cc/150?img=3",
+      userId: "mock-user-2",
     },
     images: [find2, find6],
     caption: "These sunflowers just made my whole day! The flower vendor at Grand Army is always so lovely. Got fresh herbs too!",
     marketName: "Grand Army Plaza Market",
     thanksCount: 56,
     timestamp: "5 hours ago",
+    userHasThanked: false,
   },
   {
-    id: "3",
+    id: "mock-3",
     author: {
       name: "Emma Thompson",
       avatar: "https://i.pravatar.cc/150?img=5",
+      userId: "mock-user-3",
     },
     images: [find3],
     caption: "Artisan cheese heaven 🧀 This aged gouda from the local dairy is incredible. They've been making it for three generations!",
     marketName: "Chelsea Market",
     thanksCount: 89,
     timestamp: "1 day ago",
+    userHasThanked: false,
   },
   {
-    id: "4",
+    id: "mock-4",
     author: {
       name: "David Kim",
       avatar: "https://i.pravatar.cc/150?img=8",
+      userId: "mock-user-4",
     },
     images: [find4, find5],
     caption: "Peak strawberry season has arrived! These are so sweet you don't even need to add sugar. Also grabbed some homemade preserves.",
     marketName: "Smorgasburg",
     thanksCount: 112,
     timestamp: "2 days ago",
-  },
-  {
-    id: "5",
-    author: {
-      name: "Olivia Martinez",
-      avatar: "https://i.pravatar.cc/150?img=9",
-    },
-    images: [find5],
-    caption: "Fresh lavender bundles from the herb stand! My apartment smells amazing now 💜 Also picked up some dried chamomile for tea.",
-    marketName: "Brooklyn Flea",
-    thanksCount: 45,
-    timestamp: "3 days ago",
-  },
-  {
-    id: "6",
-    author: {
-      name: "James Wilson",
-      avatar: "https://i.pravatar.cc/150?img=12",
-    },
-    images: [find6, find1],
-    caption: "Best sourdough in the city, hands down. The crust is perfectly crispy and the inside is so soft. Worth the early morning trip!",
-    marketName: "Union Square Greenmarket",
-    thanksCount: 78,
-    timestamp: "3 days ago",
-  },
-  {
-    id: "7",
-    author: {
-      name: "Aisha Patel",
-      avatar: "https://i.pravatar.cc/150?img=16",
-    },
-    images: [find2],
-    caption: "Local honey with honeycomb! The beekeeper explained how they harvest it sustainably. Supporting small apiaries feels so good 🐝",
-    marketName: "Prospect Park Market",
-    thanksCount: 93,
-    timestamp: "4 days ago",
-  },
-  {
-    id: "8",
-    author: {
-      name: "Tyler Brooks",
-      avatar: "https://i.pravatar.cc/150?img=18",
-    },
-    images: [find3, find4],
-    caption: "Rainbow carrots! Purple, orange, yellow, and white. The kids are actually excited to eat vegetables now 🥕",
-    marketName: "Grand Army Plaza Market",
-    thanksCount: 67,
-    timestamp: "4 days ago",
-  },
-  {
-    id: "9",
-    author: {
-      name: "Nina Kowalski",
-      avatar: "https://i.pravatar.cc/150?img=20",
-    },
-    images: [find4],
-    caption: "Found an incredible apple cider vendor! They press it fresh right there. Got a gallon for the week and some apple butter too 🍎",
-    marketName: "Essex Market",
-    thanksCount: 52,
-    timestamp: "5 days ago",
-  },
-  {
-    id: "10",
-    author: {
-      name: "Carlos Mendez",
-      avatar: "https://i.pravatar.cc/150?img=22",
-    },
-    images: [find1, find5],
-    caption: "Homemade tamales from the new vendor! Authentic family recipe passed down for generations. The verde sauce is 🔥",
-    marketName: "Smorgasburg",
-    thanksCount: 134,
-    timestamp: "5 days ago",
-  },
-  {
-    id: "11",
-    author: {
-      name: "Rachel Green",
-      avatar: "https://i.pravatar.cc/150?img=25",
-    },
-    images: [find6],
-    caption: "Fresh pasta made to order! Watched them roll it out and cut it right in front of me. Tonight's dinner is going to be special ✨",
-    marketName: "Chelsea Market",
-    thanksCount: 88,
-    timestamp: "6 days ago",
+    userHasThanked: false,
   },
 ];
 
 export default function Finds() {
   const isMobile = useIsMobile();
+  const { finds, loading, toggleThanks } = useFinds();
+
+  // Use real finds if available, otherwise show mock data
+  const displayFinds = finds.length > 0 ? finds : mockFinds;
 
   return (
     <div className="min-h-screen bg-background">
@@ -170,23 +99,42 @@ export default function Finds() {
         </div>
       )}
 
+      {/* Loading state */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      )}
+
       {/* Feed */}
-      <div className={isMobile 
-        ? "px-4 py-4 space-y-4" 
-        : "grid grid-cols-4 gap-4"
-      }>
-        {finds.map((find) => (
-          <FindCard
-            key={find.id}
-            author={find.author}
-            images={find.images}
-            caption={find.caption}
-            marketName={find.marketName}
-            thanksCount={find.thanksCount}
-            timestamp={find.timestamp}
-          />
-        ))}
-      </div>
+      {!loading && (
+        <div className={isMobile 
+          ? "px-4 py-4 space-y-4" 
+          : "grid grid-cols-4 gap-4"
+        }>
+          {displayFinds.map((find) => (
+            <FindCard
+              key={find.id}
+              id={find.id}
+              author={find.author}
+              images={find.images}
+              caption={find.caption}
+              marketName={find.marketName}
+              thanksCount={find.thanksCount}
+              timestamp={find.timestamp}
+              userHasThanked={find.userHasThanked}
+              onToggleThanks={toggleThanks}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && finds.length === 0 && (
+        <div className="text-center py-8 text-muted-foreground">
+          <p className="text-sm">Showing sample finds. Be the first to share!</p>
+        </div>
+      )}
     </div>
   );
 }
