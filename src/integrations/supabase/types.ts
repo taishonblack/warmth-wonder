@@ -14,6 +14,101 @@ export type Database = {
   }
   public: {
     Tables: {
+      finds: {
+        Row: {
+          caption: string
+          created_at: string
+          id: string
+          images: string[]
+          location_lat: number | null
+          location_lng: number | null
+          market_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          caption: string
+          created_at?: string
+          id?: string
+          images?: string[]
+          location_lat?: number | null
+          location_lng?: number | null
+          market_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          caption?: string
+          created_at?: string
+          id?: string
+          images?: string[]
+          location_lat?: number | null
+          location_lng?: number | null
+          market_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      follows: {
+        Row: {
+          created_at: string
+          follower_id: string
+          following_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          follower_id: string
+          following_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          follower_id?: string
+          following_id?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          find_id: string | null
+          id: string
+          read: boolean
+          type: string
+          user_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          find_id?: string | null
+          id?: string
+          read?: boolean
+          type: string
+          user_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          find_id?: string | null
+          id?: string
+          read?: boolean
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_find_id_fkey"
+            columns: ["find_id"]
+            isOneToOne: false
+            referencedRelation: "finds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       preferred_markets: {
         Row: {
           created_at: string
@@ -70,6 +165,35 @@ export type Database = {
           zip_code?: string | null
         }
         Relationships: []
+      }
+      thanks: {
+        Row: {
+          created_at: string
+          find_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          find_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          find_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "thanks_find_id_fkey"
+            columns: ["find_id"]
+            isOneToOne: false
+            referencedRelation: "finds"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
