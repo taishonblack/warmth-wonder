@@ -1,31 +1,43 @@
-import { Heart, MessageCircle } from "lucide-react";
+import { Heart, MessageCircle, UserPlus, UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useFollows } from "@/hooks/useFollows";
+import { useAuth } from "@/hooks/useAuth";
 
 interface FindCardProps {
+  id: string;
   author: {
     name: string;
     avatar: string;
+    userId: string;
   };
   images: string[];
   caption: string;
   marketName: string;
   thanksCount: number;
   timestamp: string;
+  userHasThanked?: boolean;
+  onToggleThanks?: (findId: string) => void;
   className?: string;
 }
 
 export function FindCard({
+  id,
   author,
   images,
   caption,
   marketName,
   thanksCount,
   timestamp,
+  userHasThanked = false,
+  onToggleThanks,
   className,
 }: FindCardProps) {
   const [currentImage, setCurrentImage] = useState(0);
-  const [hasThanked, setHasThanked] = useState(false);
+  const { isFollowing, toggleFollow } = useFollows();
+  const { user } = useAuth();
+  const isOwnPost = user?.id === author.userId;
+  const following = isFollowing(author.userId);
 
   return (
     <article
@@ -47,15 +59,39 @@ export function FindCard({
           </p>
           <p className="text-xs text-muted-foreground">{timestamp}</p>
         </div>
+        {!isOwnPost && user && (
+          <button
+            onClick={() => toggleFollow(author.userId)}
+            className={cn(
+              "p-2 rounded-full transition-colors",
+              following
+                ? "bg-secondary/10 text-secondary hover:bg-secondary/20"
+                : "bg-muted text-muted-foreground hover:bg-secondary/10 hover:text-secondary"
+            )}
+            title={following ? "Unfollow" : "Follow"}
+          >
+            {following ? (
+              <UserMinus className="w-4 h-4" />
+            ) : (
+              <UserPlus className="w-4 h-4" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* Image Carousel */}
       <div className="relative aspect-square bg-muted">
-        <img
-          src={images[currentImage]}
-          alt="Find"
-          className="w-full h-full object-cover"
-        />
+        {images.length > 0 ? (
+          <img
+            src={images[currentImage]}
+            alt="Find"
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+            No image
+          </div>
+        )}
         {images.length > 1 && (
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
             {images.map((_, idx) => (
@@ -79,17 +115,17 @@ export function FindCard({
         {/* Actions */}
         <div className="flex items-center gap-4">
           <button
-            onClick={() => setHasThanked(!hasThanked)}
+            onClick={() => onToggleThanks?.(id)}
             className={cn(
               "flex items-center gap-1.5 text-sm transition-colors",
-              hasThanked ? "text-accent" : "text-muted-foreground hover:text-accent"
+              userHasThanked ? "text-accent" : "text-muted-foreground hover:text-accent"
             )}
           >
             <Heart
               className="w-5 h-5"
-              fill={hasThanked ? "currentColor" : "none"}
+              fill={userHasThanked ? "currentColor" : "none"}
             />
-            <span>{hasThanked ? thanksCount + 1 : thanksCount} thanks</span>
+            <span>{thanksCount} thanks</span>
           </button>
           <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-secondary transition-colors">
             <MessageCircle className="w-5 h-5" />
