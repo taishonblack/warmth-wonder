@@ -1,14 +1,16 @@
-import { Settings, ChevronRight, MapPin, Calendar, Heart, ArrowLeft } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Settings, ChevronRight, MapPin, Calendar, Heart, ArrowLeft, Loader2 } from "lucide-react";
+import { Link, Navigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useProfile } from "@/hooks/useProfile";
+import { useAuth } from "@/hooks/useAuth";
 
-// Import images
+// Import images for My Finds (mock for now)
 import find1 from "@/assets/find-1.jpg";
 import find2 from "@/assets/find-2.jpg";
 import find3 from "@/assets/find-3.jpg";
@@ -16,7 +18,7 @@ import find4 from "@/assets/find-4.jpg";
 import find5 from "@/assets/find-5.jpg";
 import find6 from "@/assets/find-6.jpg";
 
-// Mock user finds organized by date
+// Mock user finds organized by date (will be replaced with real data later)
 const userFinds = [
   { id: "1", image: find1, date: "2024-01-25" },
   { id: "2", image: find2, date: "2024-01-24" },
@@ -28,7 +30,7 @@ const userFinds = [
   { id: "8", image: find2, date: "2024-01-18" },
 ];
 
-// Mock followed users
+// Mock followed users (will be replaced with real data later)
 const followedUsers = [
   { id: "1", name: "Sarah Chen", avatar: "https://i.pravatar.cc/150?img=5", followedAt: "2024-01-10" },
   { id: "2", name: "Marcus Lee", avatar: "https://i.pravatar.cc/150?img=8", followedAt: "2024-01-05" },
@@ -36,7 +38,7 @@ const followedUsers = [
   { id: "4", name: "James Park", avatar: "https://i.pravatar.cc/150?img=11", followedAt: "2023-12-20" },
 ];
 
-// Mock preferred markets
+// Available markets to choose from
 const allMarkets = [
   "Union Square Greenmarket",
   "Grand Army Plaza Market",
@@ -54,22 +56,50 @@ const badges = [
 ];
 
 export default function Profile() {
-  const [zipCode, setZipCode] = useState("11201");
-  const [radius, setRadius] = useState([20]);
-  const [birthday, setBirthday] = useState("1990-05-15");
-  const [preferredMarkets, setPreferredMarkets] = useState<string[]>([
-    "Union Square Greenmarket",
-    "Brooklyn Flea",
-  ]);
+  const { user, loading: authLoading } = useAuth();
+  const { profile, preferredMarkets, loading: profileLoading, saving, updateProfile, togglePreferredMarket } = useProfile();
+  
   const [isEditing, setIsEditing] = useState(false);
+  const [localBirthday, setLocalBirthday] = useState("");
+  const [localZipCode, setLocalZipCode] = useState("");
+  const [localRadius, setLocalRadius] = useState([25]);
 
-  const toggleMarket = (market: string) => {
-    setPreferredMarkets((prev) =>
-      prev.includes(market)
-        ? prev.filter((m) => m !== market)
-        : [...prev, market]
-    );
+  // Sync local state with profile data
+  useEffect(() => {
+    if (profile) {
+      setLocalBirthday(profile.birthday || "");
+      setLocalZipCode(profile.zip_code || "");
+      setLocalRadius([profile.radius_miles || 25]);
+    }
+  }, [profile]);
+
+  // Redirect to auth if not logged in
+  if (!authLoading && !user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  const handleSaveProfile = async () => {
+    await updateProfile({
+      birthday: localBirthday || null,
+      zip_code: localZipCode || null,
+      radius_miles: localRadius[0],
+    });
+    setIsEditing(false);
   };
+
+  const handleRadiusChange = async (value: number[]) => {
+    setLocalRadius(value);
+    // Auto-save radius changes
+    await updateProfile({ radius_miles: value[0] });
+  };
+
+  if (authLoading || profileLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -98,7 +128,7 @@ export default function Profile() {
           <div className="flex items-center gap-4">
             <div className="relative">
               <img
-                src="https://i.pravatar.cc/150?img=12"
+                src={profile?.avatar_url || `https://i.pravatar.cc/150?u=${user?.id}`}
                 alt="Profile"
                 className="w-20 h-20 rounded-full object-cover ring-4 ring-blush"
               />
@@ -108,12 +138,12 @@ export default function Profile() {
             </div>
             <div className="flex-1">
               <h2 className="font-serif text-xl font-semibold text-foreground">
-                Jamie Wilson
+                {profile?.display_name || user?.email?.split("@")[0] || "User"}
               </h2>
-              <p className="text-sm text-muted-foreground">@jamiewilson</p>
+              <p className="text-sm text-muted-foreground">{user?.email}</p>
               <div className="flex gap-4 mt-2 text-sm">
                 <span className="text-foreground">
-                  <strong>23</strong>{" "}
+                  <strong>{userFinds.length}</strong>{" "}
                   <span className="text-muted-foreground">finds</span>
                 </span>
                 <span className="text-foreground">
@@ -136,9 +166,19 @@ export default function Profile() {
           <Button
             variant="outline"
             className="mt-4 w-full"
-            onClick={() => setIsEditing(!isEditing)}
+            onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
+            disabled={saving}
           >
-            {isEditing ? "Save Profile" : "Edit Profile"}
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : isEditing ? (
+              "Save Profile"
+            ) : (
+              "Edit Profile"
+            )}
           </Button>
         </div>
 
@@ -158,8 +198,8 @@ export default function Profile() {
                   <Input
                     id="birthday"
                     type="date"
-                    value={birthday}
-                    onChange={(e) => setBirthday(e.target.value)}
+                    value={localBirthday}
+                    onChange={(e) => setLocalBirthday(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -170,8 +210,8 @@ export default function Profile() {
                   <Input
                     id="zipCode"
                     type="text"
-                    value={zipCode}
-                    onChange={(e) => setZipCode(e.target.value)}
+                    value={localZipCode}
+                    onChange={(e) => setLocalZipCode(e.target.value)}
                     placeholder="Enter your zip code"
                     maxLength={10}
                   />
@@ -181,7 +221,7 @@ export default function Profile() {
           </section>
         )}
 
-        {/* Discovery Radius - now 0-100 */}
+        {/* Discovery Radius - 0-100 */}
         <section className="px-4 py-4 border-t border-border">
           <div className="flex items-center gap-2 mb-3">
             <MapPin className="w-4 h-4 text-secondary" />
@@ -190,11 +230,11 @@ export default function Profile() {
             </h3>
           </div>
           <p className="text-sm text-muted-foreground mb-4">
-            How far to look for markets and finds: <strong>{radius[0]} miles</strong>
+            How far to look for markets and finds: <strong>{localRadius[0]} miles</strong>
           </p>
           <Slider
-            value={radius}
-            onValueChange={setRadius}
+            value={localRadius}
+            onValueChange={handleRadiusChange}
             min={0}
             max={100}
             step={5}
@@ -226,7 +266,7 @@ export default function Profile() {
                     ? "bg-primary text-primary-foreground"
                     : "hover:bg-muted"
                 )}
-                onClick={() => toggleMarket(market)}
+                onClick={() => togglePreferredMarket(market)}
               >
                 {market}
               </Badge>
