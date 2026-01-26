@@ -1,5 +1,6 @@
 import { FindCard } from "@/components/FindCard";
 import { SectionHeader } from "@/components/SectionHeader";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Import images
 import find1 from "@/assets/find-1.jpg";
@@ -61,18 +62,35 @@ const finds = [
 ];
 
 export default function Finds() {
+  const isMobile = useIsMobile();
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm py-4 px-4 border-b border-border">
-        <h1 className="font-serif text-2xl font-bold text-primary">Finds</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Discover what your community is finding
-        </p>
-      </header>
+      {/* Header - only show on mobile, desktop uses top nav */}
+      {isMobile && (
+        <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm py-4 px-4 border-b border-border">
+          <h1 className="font-serif text-2xl font-bold text-primary">Finds</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Discover what your community is finding
+          </p>
+        </header>
+      )}
+
+      {/* Desktop header */}
+      {!isMobile && (
+        <div className="mb-6">
+          <h1 className="font-serif text-3xl font-bold text-primary">Finds</h1>
+          <p className="text-muted-foreground mt-1">
+            Discover what your community is finding
+          </p>
+        </div>
+      )}
 
       {/* Feed */}
-      <div className="px-4 py-4 space-y-4">
+      <div className={isMobile 
+        ? "px-4 py-4 space-y-4" 
+        : "grid grid-cols-4 gap-4"
+      }>
         {finds.map((find) => (
           <FindCard
             key={find.id}
