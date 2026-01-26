@@ -139,11 +139,8 @@ export default function Home() {
         </header>
       )}
 
-      {/* Desktop header */}
-      {!isMobile && <DesktopHeader />}
-
       {/* Content */}
-      <div className={isMobile ? "px-4 py-4 space-y-6" : "space-y-8"}>
+      <div className={isMobile ? "px-4 py-4 space-y-6" : "space-y-6"}>
         {/* Near You Section */}
         <section>
           <SectionHeader

@@ -1,7 +1,6 @@
 import { ReactNode } from "react";
 import { BottomNav } from "./BottomNav";
-import { AppSidebar } from "./AppSidebar";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { DesktopTopNav } from "./DesktopTopNav";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AppLayoutProps {
@@ -21,13 +20,9 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full">
-        <AppSidebar />
-        <SidebarInset className="flex-1">
-          <main className="p-6 max-w-7xl mx-auto w-full">{children}</main>
-        </SidebarInset>
-      </div>
-    </SidebarProvider>
+    <div className="min-h-screen bg-background">
+      <DesktopTopNav />
+      <main className="px-6 py-4 max-w-7xl mx-auto w-full">{children}</main>
+    </div>
   );
 }
