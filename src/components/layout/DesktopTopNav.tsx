@@ -36,15 +36,16 @@ export function DesktopTopNav() {
 
   return (
     <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
-      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-6">
-        {/* Logo and Nav */}
-        <div className="flex items-center gap-8">
-          <Link to="/" className="flex items-center gap-2 shrink-0">
-            <img src={nearishLogo} alt="Nearish logo" className="w-8 h-8 object-contain" />
-            <h1 className="font-serif text-xl font-bold text-primary">nearish</h1>
-          </Link>
+      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center gap-6">
+        {/* Logo - Left */}
+        <Link to="/" className="flex items-center gap-2 shrink-0">
+          <img src={nearishLogo} alt="Nearish logo" className="w-8 h-8 object-contain" />
+          <h1 className="font-serif text-xl font-bold text-primary">nearish</h1>
+        </Link>
 
-          {/* Navigation Links - Profile removed */}
+        {/* Center section - Nav + Search */}
+        <div className="flex-1 flex items-center justify-center gap-6">
+          {/* Navigation Links */}
           <nav className="hidden md:flex items-center gap-1">
             {navItems.map(({ icon: Icon, path, label }) => {
               const isActive = location.pathname === path;
@@ -65,10 +66,10 @@ export function DesktopTopNav() {
               );
             })}
           </nav>
-        </div>
 
-        {/* Search bar - centered */}
-        <SearchBar className="max-w-md flex-1 hidden lg:flex" />
+          {/* Search bar */}
+          <SearchBar className="max-w-md w-full hidden lg:flex" />
+        </div>
 
         {/* Right actions */}
         <div className="flex items-center gap-3">
