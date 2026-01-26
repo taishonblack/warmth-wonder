@@ -59,6 +59,90 @@ const finds = [
     thanksCount: 112,
     timestamp: "2 days ago",
   },
+  {
+    id: "5",
+    author: {
+      name: "Olivia Martinez",
+      avatar: "https://i.pravatar.cc/150?img=9",
+    },
+    images: [find5],
+    caption: "Fresh lavender bundles from the herb stand! My apartment smells amazing now 💜 Also picked up some dried chamomile for tea.",
+    marketName: "Brooklyn Flea",
+    thanksCount: 45,
+    timestamp: "3 days ago",
+  },
+  {
+    id: "6",
+    author: {
+      name: "James Wilson",
+      avatar: "https://i.pravatar.cc/150?img=12",
+    },
+    images: [find6, find1],
+    caption: "Best sourdough in the city, hands down. The crust is perfectly crispy and the inside is so soft. Worth the early morning trip!",
+    marketName: "Union Square Greenmarket",
+    thanksCount: 78,
+    timestamp: "3 days ago",
+  },
+  {
+    id: "7",
+    author: {
+      name: "Aisha Patel",
+      avatar: "https://i.pravatar.cc/150?img=16",
+    },
+    images: [find2],
+    caption: "Local honey with honeycomb! The beekeeper explained how they harvest it sustainably. Supporting small apiaries feels so good 🐝",
+    marketName: "Prospect Park Market",
+    thanksCount: 93,
+    timestamp: "4 days ago",
+  },
+  {
+    id: "8",
+    author: {
+      name: "Tyler Brooks",
+      avatar: "https://i.pravatar.cc/150?img=18",
+    },
+    images: [find3, find4],
+    caption: "Rainbow carrots! Purple, orange, yellow, and white. The kids are actually excited to eat vegetables now 🥕",
+    marketName: "Grand Army Plaza Market",
+    thanksCount: 67,
+    timestamp: "4 days ago",
+  },
+  {
+    id: "9",
+    author: {
+      name: "Nina Kowalski",
+      avatar: "https://i.pravatar.cc/150?img=20",
+    },
+    images: [find4],
+    caption: "Found an incredible apple cider vendor! They press it fresh right there. Got a gallon for the week and some apple butter too 🍎",
+    marketName: "Essex Market",
+    thanksCount: 52,
+    timestamp: "5 days ago",
+  },
+  {
+    id: "10",
+    author: {
+      name: "Carlos Mendez",
+      avatar: "https://i.pravatar.cc/150?img=22",
+    },
+    images: [find1, find5],
+    caption: "Homemade tamales from the new vendor! Authentic family recipe passed down for generations. The verde sauce is 🔥",
+    marketName: "Smorgasburg",
+    thanksCount: 134,
+    timestamp: "5 days ago",
+  },
+  {
+    id: "11",
+    author: {
+      name: "Rachel Green",
+      avatar: "https://i.pravatar.cc/150?img=25",
+    },
+    images: [find6],
+    caption: "Fresh pasta made to order! Watched them roll it out and cut it right in front of me. Tonight's dinner is going to be special ✨",
+    marketName: "Chelsea Market",
+    thanksCount: 88,
+    timestamp: "6 days ago",
+  },
 ];
 
 export default function Finds() {
