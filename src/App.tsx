@@ -9,6 +9,8 @@ import Finds from "./pages/Finds";
 import MapPage from "./pages/MapPage";
 import Forum from "./pages/Forum";
 import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
+import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +28,8 @@ const App = () => (
             <Route path="/map" element={<MapPage />} />
             <Route path="/forum" element={<Forum />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/auth" element={<Auth />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
