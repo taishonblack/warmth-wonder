@@ -3,20 +3,30 @@ import { MapBottomSheet } from "@/components/MapBottomSheet";
 import { MapLegend } from "@/components/MapLegend";
 import { MapView } from "@/components/MapView";
 import { MapSearchBar } from "@/components/MapSearchBar";
+import { DietFilterBar, DietFilters } from "@/components/DietFilterBar";
+import { ClaimMarketModal } from "@/components/ClaimMarketModal";
 import { useGeolocation } from "@/hooks/useGeolocation";
-import { useCombinedMarkets } from "@/hooks/useMarkets";
+import { useCombinedMarkets, Market } from "@/hooks/useMarkets";
 import { Loader2, MapPin } from "lucide-react";
 
 export default function MapPage() {
   const [selectedMarket, setSelectedMarket] = useState<string | null>(null);
   const [showDirections, setShowDirections] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [claimingMarket, setClaimingMarket] = useState<Market | null>(null);
+  const [dietFilters, setDietFilters] = useState<DietFilters>({
+    organic: false,
+    veganFriendly: false,
+    glutenFree: false,
+  });
+  
   const { latitude, longitude, loading: geoLoading, error: geoError } = useGeolocation();
   
   const { 
     data: markets = [], 
-    isLoading: marketsLoading 
-  } = useCombinedMarkets(latitude, longitude, searchQuery);
+    isLoading: marketsLoading,
+    refetch,
+  } = useCombinedMarkets(latitude, longitude, searchQuery, 8000, dietFilters);
 
   const userLocation = latitude && longitude ? { lat: latitude, lng: longitude } : null;
 
@@ -30,8 +40,13 @@ export default function MapPage() {
     setShowDirections(true);
   };
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
+  const handleClaimMarket = (market: Market) => {
+    setClaimingMarket(market);
+  };
+
+  const handleMarketClaimed = () => {
+    setClaimingMarket(null);
+    refetch();
   };
 
   if (marketsLoading && markets.length === 0) {
@@ -48,16 +63,21 @@ export default function MapPage() {
   return (
     <div className="h-screen bg-muted relative overflow-hidden">
       {/* Search Bar */}
-      <div className="absolute top-4 left-4 right-4 z-20">
+      <div className="absolute top-4 left-4 right-4 z-20 space-y-2">
         <MapSearchBar
           markets={markets}
           onMarketSelect={handleMarketSelect}
+        />
+        <DietFilterBar 
+          filters={dietFilters} 
+          onChange={setDietFilters}
+          className="bg-card/90 backdrop-blur-sm rounded-xl p-2"
         />
       </div>
 
       {/* Location Error Banner */}
       {geoError && (
-        <div className="absolute top-20 left-4 right-4 z-20 bg-secondary/90 text-secondary-foreground px-4 py-2 rounded-xl flex items-center gap-2 text-sm">
+        <div className="absolute top-32 left-4 right-4 z-20 bg-secondary/90 text-secondary-foreground px-4 py-2 rounded-xl flex items-center gap-2 text-sm">
           <MapPin className="w-4 h-4" />
           <span>Location unavailable. Showing NYC markets.</span>
         </div>
@@ -82,6 +102,15 @@ export default function MapPage() {
         onMarketSelect={handleMarketSelect}
         userLocation={userLocation}
         onGetDirections={handleGetDirections}
+        onClaimMarket={handleClaimMarket}
+      />
+
+      {/* Claim Market Modal */}
+      <ClaimMarketModal
+        isOpen={!!claimingMarket}
+        onClose={() => setClaimingMarket(null)}
+        market={claimingMarket}
+        onClaimed={handleMarketClaimed}
       />
     </div>
   );
