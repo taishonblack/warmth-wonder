@@ -124,6 +124,8 @@ export type Database = {
           organic: boolean | null
           osm_source_id: string | null
           phone: string | null
+          photo_reference: string | null
+          photo_url: string | null
           state: string
           type: string
           updated_at: string
@@ -149,6 +151,8 @@ export type Database = {
           organic?: boolean | null
           osm_source_id?: string | null
           phone?: string | null
+          photo_reference?: string | null
+          photo_url?: string | null
           state?: string
           type?: string
           updated_at?: string
@@ -174,6 +178,8 @@ export type Database = {
           organic?: boolean | null
           osm_source_id?: string | null
           phone?: string | null
+          photo_reference?: string | null
+          photo_url?: string | null
           state?: string
           type?: string
           updated_at?: string
