@@ -16,6 +16,7 @@ interface FindDetailPopupProps {
     image: string;
     posterName: string;
     posterAvatar: string;
+    posterId?: string;
     caption: string;
     marketName: string;
     thanksCount: number;
@@ -32,6 +33,13 @@ export function FindDetailPopup({ isOpen, onClose, find }: FindDetailPopupProps)
   const handleMoreClick = () => {
     onClose();
     navigate("/finds");
+  };
+
+  const handlePosterClick = () => {
+    if (find?.posterId) {
+      onClose();
+      navigate(`/u/${find.posterId}`);
+    }
   };
 
   return (
@@ -51,8 +59,11 @@ export function FindDetailPopup({ isOpen, onClose, find }: FindDetailPopupProps)
 
         {/* Content */}
         <div className="p-4 space-y-3">
-          {/* Poster info */}
-          <div className="flex items-center gap-3">
+          {/* Poster info - clickable to view profile */}
+          <button 
+            onClick={handlePosterClick}
+            className="flex items-center gap-3 w-full text-left hover:opacity-80 transition-opacity"
+          >
             <img
               src={find.posterAvatar}
               alt={find.posterName}
@@ -64,7 +75,7 @@ export function FindDetailPopup({ isOpen, onClose, find }: FindDetailPopupProps)
               </p>
               <p className="text-xs text-muted-foreground">{find.timestamp}</p>
             </div>
-          </div>
+          </button>
 
           {/* Caption */}
           <p className="text-sm text-foreground leading-relaxed line-clamp-2">

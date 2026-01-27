@@ -9,6 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useProfile } from "@/hooks/useProfile";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserStats } from "@/hooks/useUserStats";
+import { useFollows } from "@/hooks/useFollows";
+import { TrustBadge, computeTrustBadges } from "@/components/TrustBadge";
+import { supabase } from "@/integrations/supabase/client";
 
 // Import images for My Finds (mock for now)
 import find1 from "@/assets/find-1.jpg";
@@ -30,13 +34,11 @@ const userFinds = [
   { id: "8", image: find2, date: "2024-01-18" },
 ];
 
-// Mock followed users (will be replaced with real data later)
-const followedUsers = [
-  { id: "1", name: "Sarah Chen", avatar: "https://i.pravatar.cc/150?img=5", followedAt: "2024-01-10" },
-  { id: "2", name: "Marcus Lee", avatar: "https://i.pravatar.cc/150?img=8", followedAt: "2024-01-05" },
-  { id: "3", name: "Emma Wilson", avatar: "https://i.pravatar.cc/150?img=9", followedAt: "2023-12-28" },
-  { id: "4", name: "James Park", avatar: "https://i.pravatar.cc/150?img=11", followedAt: "2023-12-20" },
-];
+interface FollowedUser {
+  id: string;
+  name: string;
+  avatar: string;
+}
 
 // Available markets to choose from
 const allMarkets = [
@@ -49,20 +51,47 @@ const allMarkets = [
   "Prospect Park Market",
 ];
 
-const badges = [
-  { id: "1", emoji: "🌱", label: "Local Regular", description: "Visited 10+ markets" },
-  { id: "2", emoji: "🍂", label: "Seasonal Spotter", description: "Shared 5+ seasonal finds" },
-  { id: "3", emoji: "✨", label: "Community Favorite", description: "100+ thanks received" },
-];
-
 export default function Profile() {
   const { user, loading: authLoading } = useAuth();
   const { profile, preferredMarkets, loading: profileLoading, saving, updateProfile, togglePreferredMarket } = useProfile();
+  const { stats, loading: statsLoading } = useUserStats(user?.id);
+  const { following } = useFollows();
   
   const [isEditing, setIsEditing] = useState(false);
   const [localBirthday, setLocalBirthday] = useState("");
   const [localZipCode, setLocalZipCode] = useState("");
   const [localRadius, setLocalRadius] = useState([25]);
+  const [followedUsers, setFollowedUsers] = useState<FollowedUser[]>([]);
+
+  // Compute trust badges based on real stats
+  const badges = computeTrustBadges({
+    marketCount: stats.marketCount,
+    findCount: stats.findCount,
+    thanksReceived: stats.thanksReceived,
+    recentFinds: stats.recentFinds,
+  });
+
+  // Fetch followed users' profiles
+  useEffect(() => {
+    const fetchFollowedProfiles = async () => {
+      if (following.length === 0) return;
+      
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, display_name, avatar_url")
+        .in("user_id", following);
+      
+      if (profiles) {
+        setFollowedUsers(profiles.map(p => ({
+          id: p.user_id,
+          name: p.display_name || "User",
+          avatar: p.avatar_url || `https://i.pravatar.cc/150?u=${p.user_id}`,
+        })));
+      }
+    };
+
+    fetchFollowedProfiles();
+  }, [following]);
 
   // Sync local state with profile data
   useEffect(() => {
@@ -143,15 +172,19 @@ export default function Profile() {
               <p className="text-sm text-muted-foreground">{user?.email}</p>
               <div className="flex gap-4 mt-2 text-sm">
                 <span className="text-foreground">
-                  <strong>{userFinds.length}</strong>{" "}
+                  <strong>{stats.findCount}</strong>{" "}
                   <span className="text-muted-foreground">finds</span>
                 </span>
                 <span className="text-foreground">
-                  <strong>156</strong>{" "}
+                  <strong>{stats.thanksReceived}</strong>{" "}
                   <span className="text-muted-foreground">thanks</span>
                 </span>
                 <span className="text-foreground">
-                  <strong>{followedUsers.length}</strong>{" "}
+                  <strong>{stats.followerCount}</strong>{" "}
+                  <span className="text-muted-foreground">followers</span>
+                </span>
+                <span className="text-foreground">
+                  <strong>{stats.followingCount}</strong>{" "}
                   <span className="text-muted-foreground">following</span>
                 </span>
               </div>
@@ -274,65 +307,49 @@ export default function Profile() {
           </div>
         </section>
 
-        {/* Badges */}
+        {/* Badges - show earned ones */}
         <section className="px-4 py-4 border-t border-border">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-serif text-lg font-semibold text-foreground">
               Trust Badges
             </h3>
-            <button className="text-sm text-secondary hover:text-primary transition-colors flex items-center gap-0.5">
-              All badges
-              <ChevronRight className="w-4 h-4" />
-            </button>
           </div>
           <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4">
             {badges.map((badge) => (
-              <div
-                key={badge.id}
-                className="flex-shrink-0 w-32 p-3 bg-card rounded-xl shadow-soft-sm text-center"
-              >
-                <span className="text-2xl">{badge.emoji}</span>
-                <p className="font-medium text-sm text-foreground mt-1">
-                  {badge.label}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                  {badge.description}
-                </p>
-              </div>
+              <TrustBadge key={badge.id} badge={badge} />
             ))}
           </div>
         </section>
 
         {/* Users Following */}
-        <section className="px-4 py-4 border-t border-border">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-serif text-lg font-semibold text-foreground flex items-center gap-2">
-              <Heart className="w-4 h-4 text-accent" />
-              Following
-            </h3>
-            <button className="text-sm text-secondary hover:text-primary transition-colors flex items-center gap-0.5">
-              View all
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4">
-            {followedUsers.map((user) => (
-              <button
-                key={user.id}
-                className="flex-shrink-0 flex flex-col items-center gap-2 p-3 bg-card rounded-xl shadow-soft-sm hover:shadow-soft-md transition-shadow"
-              >
-                <img
-                  src={user.avatar}
-                  alt={user.name}
-                  className="w-12 h-12 rounded-full object-cover"
-                />
-                <span className="text-sm font-medium text-foreground text-center max-w-20 truncate">
-                  {user.name}
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
+        {followedUsers.length > 0 && (
+          <section className="px-4 py-4 border-t border-border">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-serif text-lg font-semibold text-foreground flex items-center gap-2">
+                <Heart className="w-4 h-4 text-accent" />
+                Following
+              </h3>
+            </div>
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4">
+              {followedUsers.map((followedUser) => (
+                <Link
+                  key={followedUser.id}
+                  to={`/u/${followedUser.id}`}
+                  className="flex-shrink-0 flex flex-col items-center gap-2 p-3 bg-card rounded-xl shadow-soft-sm hover:shadow-soft-md transition-shadow"
+                >
+                  <img
+                    src={followedUser.avatar}
+                    alt={followedUser.name}
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
+                  <span className="text-sm font-medium text-foreground text-center max-w-20 truncate">
+                    {followedUser.name}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* User's Finds Grid - 4 per row, smaller, organized by date */}
         <section className="px-4 py-4 border-t border-border">

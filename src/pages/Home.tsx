@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { MapPin, Loader2 } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
 import { MarketCarousel } from "@/components/MarketCarousel";
-import { FindGridItem } from "@/components/FindGridItem";
+import { MasonryGrid } from "@/components/MasonryGrid";
+import { MasonryFindItem } from "@/components/MasonryFindItem";
 import { SectionHeader } from "@/components/SectionHeader";
 import { FindDetailPopup } from "@/components/FindDetailPopup";
 import { MarketDetailPopup } from "@/components/MarketDetailPopup";
@@ -95,7 +96,7 @@ interface HomeMarket extends Market {
 
 export default function Home() {
   const navigate = useNavigate();
-  const [selectedFind, setSelectedFind] = useState<typeof mockFinds[0] | null>(null);
+  const [selectedFind, setSelectedFind] = useState<typeof mockFinds[0] & { posterId?: string } | null>(null);
   const [selectedMarket, setSelectedMarket] = useState<HomeMarket | null>(null);
   const [claimingMarket, setClaimingMarket] = useState<Market | null>(null);
   const [dietFilters, setDietFilters] = useState<DietFilters>({
@@ -147,12 +148,13 @@ export default function Home() {
         image: f.images[0] || find1,
         posterName: f.author.name,
         posterAvatar: f.author.avatar,
+        posterId: f.author.userId,
         caption: f.caption,
         marketName: f.marketName,
         thanksCount: f.thanksCount,
         timestamp: f.timestamp,
       }))
-    : mockFinds;
+    : mockFinds.map(f => ({ ...f, posterId: undefined }));
 
   const handleMarketClick = (market: HomeMarket) => {
     // Navigate to market detail page if it's a DB market, otherwise show popup
@@ -169,6 +171,21 @@ export default function Home() {
       setSelectedMarket(null);
     }
   };
+
+  const handleFindClick = (find: typeof displayFinds[0]) => {
+    setSelectedFind({
+      ...find,
+      posterId: find.posterId,
+    });
+  };
+
+  const handlePosterClick = (userId?: string) => {
+    if (userId) {
+      navigate(`/u/${userId}`);
+    }
+  };
+
+  const masonryColumns = isMobile ? 2 : 4;
 
   return (
     <div className="min-h-screen bg-background">
@@ -255,31 +272,30 @@ export default function Home() {
           </section>
         )}
 
-        {/* Fresh Finds Grid */}
+        {/* Fresh Finds - Masonry Grid */}
         <section>
           <SectionHeader
             title="Fresh Finds"
-            action={{ label: "See all", onClick: () => {} }}
+            action={{ label: "See all", onClick: () => navigate("/finds") }}
             className="mb-3"
           />
-          <div className={isMobile 
-            ? "grid grid-cols-2 gap-3"
-            : "grid grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
-          }>
+          <MasonryGrid columns={masonryColumns} gap={12}>
             {displayFinds.map((find) => (
-              <FindGridItem
+              <MasonryFindItem
                 key={find.id}
+                id={find.id}
                 image={find.image}
                 posterName={find.posterName}
                 posterAvatar={find.posterAvatar}
+                posterUserId={find.posterId}
                 caption={find.caption}
                 marketName={find.marketName}
                 thanksCount={find.thanksCount}
-                aspectRatio="square"
-                onClick={() => setSelectedFind(find)}
+                onClick={() => handleFindClick(find)}
+                onPosterClick={() => handlePosterClick(find.posterId)}
               />
             ))}
-          </div>
+          </MasonryGrid>
         </section>
       </div>
 
