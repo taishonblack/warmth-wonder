@@ -3,10 +3,10 @@ import { Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const legendItems = [
-  { color: "bg-primary", label: "Farmers Market" },
-  { color: "bg-secondary", label: "Flea Market" },
-  { color: "bg-clay", label: "Artisan Market" },
-  { color: "bg-accent", label: "Specialty Market" },
+  { color: "#7C9A5E", label: "Farmers Market" },
+  { color: "#D4A574", label: "Flea Market" },
+  { color: "#C4A77D", label: "Artisan Market" },
+  { color: "#B8860B", label: "Specialty Market" },
 ];
 
 export function MapLegend() {
@@ -39,7 +39,8 @@ export function MapLegend() {
             {legendItems.map((item) => (
               <div key={item.label} className="flex items-center gap-2">
                 <span
-                  className={cn("w-3 h-3 rounded-full", item.color)}
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: item.color }}
                 />
                 <span className="text-xs text-foreground">{item.label}</span>
               </div>
