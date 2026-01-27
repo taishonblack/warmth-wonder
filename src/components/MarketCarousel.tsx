@@ -22,6 +22,7 @@ interface MarketWithImage {
   image?: string;
   distanceMiles?: number;
   is_open?: boolean;
+  hours?: string | null;
   source?: string;
 }
 
@@ -112,6 +113,7 @@ export function MarketCarousel({
                     : undefined
                 }
                 isOpen={market.is_open}
+                hours={market.hours}
                 onClick={() => onMarketClick(market)}
                 className="w-full"
               />
