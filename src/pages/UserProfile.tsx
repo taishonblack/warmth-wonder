@@ -8,6 +8,7 @@ import { useUserStats } from "@/hooks/useUserStats";
 import { TrustBadge, computeTrustBadges } from "@/components/TrustBadge";
 import { FindGridItem } from "@/components/FindGridItem";
 import { FindDetailPopup } from "@/components/FindDetailPopup";
+import { FollowListSheet } from "@/components/FollowListSheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +42,7 @@ export default function UserProfile() {
   const [finds, setFinds] = useState<Find[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFind, setSelectedFind] = useState<Find | null>(null);
+  const [followSheetType, setFollowSheetType] = useState<"followers" | "following" | null>(null);
 
   const isOwnProfile = currentUser?.id === userId;
   const following = userId ? isFollowing(userId) : false;
@@ -169,7 +171,7 @@ export default function UserProfile() {
               <h2 className="font-serif text-xl font-semibold text-foreground">
                 {profile?.display_name || "Anonymous User"}
               </h2>
-              <div className="flex gap-4 mt-2 text-sm">
+              <div className="flex gap-4 mt-2 text-sm flex-wrap">
                 <span className="text-foreground">
                   <strong>{stats.findCount}</strong>{" "}
                   <span className="text-muted-foreground">finds</span>
@@ -178,10 +180,20 @@ export default function UserProfile() {
                   <strong>{stats.thanksReceived}</strong>{" "}
                   <span className="text-muted-foreground">thanks</span>
                 </span>
-                <span className="text-foreground">
+                <button 
+                  onClick={() => setFollowSheetType("followers")}
+                  className="text-foreground hover:underline"
+                >
                   <strong>{stats.followerCount}</strong>{" "}
                   <span className="text-muted-foreground">followers</span>
-                </span>
+                </button>
+                <button 
+                  onClick={() => setFollowSheetType("following")}
+                  className="text-foreground hover:underline"
+                >
+                  <strong>{stats.followingCount}</strong>{" "}
+                  <span className="text-muted-foreground">following</span>
+                </button>
               </div>
             </div>
           </div>
@@ -264,6 +276,16 @@ export default function UserProfile() {
         onClose={() => setSelectedFind(null)}
         find={selectedFind}
       />
+
+      {/* Follow List Sheet */}
+      {userId && (
+        <FollowListSheet
+          isOpen={!!followSheetType}
+          onClose={() => setFollowSheetType(null)}
+          userId={userId}
+          type={followSheetType || "followers"}
+        />
+      )}
     </div>
   );
 }

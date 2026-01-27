@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserStats } from "@/hooks/useUserStats";
 import { useFollows } from "@/hooks/useFollows";
 import { TrustBadge, computeTrustBadges } from "@/components/TrustBadge";
+import { FollowListSheet } from "@/components/FollowListSheet";
 import { supabase } from "@/integrations/supabase/client";
 
 interface UserFind {
@@ -52,6 +53,7 @@ export default function Profile() {
   const [followedUsers, setFollowedUsers] = useState<FollowedUser[]>([]);
   const [userFinds, setUserFinds] = useState<UserFind[]>([]);
   const [findsLoading, setFindsLoading] = useState(true);
+  const [followSheetType, setFollowSheetType] = useState<"followers" | "following" | null>(null);
 
   // Compute trust badges based on real stats
   const badges = computeTrustBadges({
@@ -184,7 +186,7 @@ export default function Profile() {
                 {profile?.display_name || user?.email?.split("@")[0] || "User"}
               </h2>
               <p className="text-sm text-muted-foreground">{user?.email}</p>
-              <div className="flex gap-4 mt-2 text-sm">
+              <div className="flex gap-4 mt-2 text-sm flex-wrap">
                 <span className="text-foreground">
                   <strong>{stats.findCount}</strong>{" "}
                   <span className="text-muted-foreground">finds</span>
@@ -193,14 +195,20 @@ export default function Profile() {
                   <strong>{stats.thanksReceived}</strong>{" "}
                   <span className="text-muted-foreground">thanks</span>
                 </span>
-                <span className="text-foreground">
+                <button 
+                  onClick={() => setFollowSheetType("followers")}
+                  className="text-foreground hover:underline"
+                >
                   <strong>{stats.followerCount}</strong>{" "}
                   <span className="text-muted-foreground">followers</span>
-                </span>
-                <span className="text-foreground">
+                </button>
+                <button 
+                  onClick={() => setFollowSheetType("following")}
+                  className="text-foreground hover:underline"
+                >
                   <strong>{stats.followingCount}</strong>{" "}
                   <span className="text-muted-foreground">following</span>
-                </span>
+                </button>
               </div>
             </div>
           </div>
@@ -417,6 +425,16 @@ export default function Profile() {
           </div>
         </section>
       </div>
+
+      {/* Follow List Sheet */}
+      {user && (
+        <FollowListSheet
+          isOpen={!!followSheetType}
+          onClose={() => setFollowSheetType(null)}
+          userId={user.id}
+          type={followSheetType || "followers"}
+        />
+      )}
     </div>
   );
 }

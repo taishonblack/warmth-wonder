@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { MasonryGrid } from "@/components/MasonryGrid";
 import { MasonryFindItem } from "@/components/MasonryFindItem";
 import { FindDetailPopup } from "@/components/FindDetailPopup";
+import { StoriesRow } from "@/components/StoriesRow";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useFinds } from "@/hooks/useFinds";
 import { Loader2 } from "lucide-react";
@@ -120,6 +121,24 @@ export default function Finds() {
   // Use real finds if available, otherwise show mock data
   const displayFinds = finds.length > 0 ? finds : mockFinds;
 
+  // Extract unique recent posters for stories row
+  const storyUsers = useMemo(() => {
+    const seenUsers = new Set<string>();
+    return displayFinds
+      .filter(find => {
+        if (seenUsers.has(find.author.userId)) return false;
+        seenUsers.add(find.author.userId);
+        return true;
+      })
+      .slice(0, 10)
+      .map(find => ({
+        userId: find.author.userId,
+        name: find.author.name,
+        avatar: find.author.avatar,
+        hasNewContent: true, // Could track this properly later
+      }));
+  }, [displayFinds]);
+
   const handleFindClick = (find: typeof displayFinds[0]) => {
     setSelectedFind({
       id: find.id,
@@ -166,6 +185,14 @@ export default function Finds() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
+      )}
+
+      {/* Stories Row */}
+      {!loading && storyUsers.length > 0 && (
+        <StoriesRow 
+          users={storyUsers} 
+          className="border-b border-border" 
+        />
       )}
 
       {/* Masonry Feed */}

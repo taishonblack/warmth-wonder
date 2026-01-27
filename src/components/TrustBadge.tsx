@@ -69,11 +69,25 @@ export function computeTrustBadges(stats: {
 
   return [
     {
+      id: "first-find",
+      emoji: "🎉",
+      label: "First Find",
+      description: "Shared your first find",
+      earned: findCount >= 1,
+    },
+    {
       id: "local-regular",
       emoji: "🌱",
       label: "Local Regular",
       description: "Visited 10+ markets",
       earned: marketCount >= 10,
+    },
+    {
+      id: "neighborhood-explorer",
+      emoji: "🗺️",
+      label: "Neighborhood Explorer",
+      description: "Posted 25+ finds",
+      earned: findCount >= 25,
     },
     {
       id: "seasonal-spotter",
@@ -83,18 +97,18 @@ export function computeTrustBadges(stats: {
       earned: recentFinds >= 5,
     },
     {
+      id: "good-neighbor",
+      emoji: "🤝",
+      label: "Good Neighbor",
+      description: "25+ thanks received",
+      earned: thanksReceived >= 25,
+    },
+    {
       id: "community-favorite",
       emoji: "✨",
       label: "Community Favorite",
       description: "100+ thanks received",
       earned: thanksReceived >= 100,
-    },
-    {
-      id: "first-find",
-      emoji: "🎉",
-      label: "First Find",
-      description: "Shared your first find",
-      earned: findCount >= 1,
     },
   ];
 }
