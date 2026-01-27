@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { Market } from "@/hooks/useMarkets";
+import { Locate } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface MapViewProps {
   markets: Market[];
@@ -237,7 +239,32 @@ export function MapView({
     }
   }, [selectedMarket, markets, mapLoaded, userLocation, showDirections, fetchDirections, clearDirections]);
 
+  const handleLocateMe = useCallback(() => {
+    if (!map.current || !userLocation) return;
+    
+    map.current.flyTo({
+      center: [userLocation.lng, userLocation.lat],
+      zoom: 14,
+      duration: 1000,
+    });
+  }, [userLocation]);
+
   return (
-    <div ref={mapContainer} className="absolute inset-0" />
+    <div className="absolute inset-0">
+      <div ref={mapContainer} className="absolute inset-0" />
+      
+      {/* Locate Me Button */}
+      {userLocation && (
+        <Button
+          onClick={handleLocateMe}
+          size="icon"
+          variant="secondary"
+          className="absolute bottom-24 right-4 z-10 shadow-lg md:bottom-4"
+          aria-label="Center map on my location"
+        >
+          <Locate className="h-5 w-5" />
+        </Button>
+      )}
+    </div>
   );
 }
