@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Star, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -12,6 +13,7 @@ interface MarketCardProps {
   featuredProducts?: string[];
   className?: string;
   onClick?: () => void;
+  isLoadingPhoto?: boolean;
 }
 
 export function MarketCard({
@@ -24,8 +26,13 @@ export function MarketCard({
   featuredProducts = ["Fresh Produce", "Artisan Bread", "Local Honey"],
   className,
   onClick,
+  isLoadingPhoto = false,
 }: MarketCardProps) {
   const isMobile = useIsMobile();
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  const showSkeleton = isLoadingPhoto || (!imageLoaded && !imageError);
 
   if (isMobile) {
     return (
@@ -36,11 +43,22 @@ export function MarketCard({
           className
         )}
       >
-        <div className="relative overflow-hidden rounded-xl aspect-[4/3] mb-2 shadow-soft-sm">
+        <div className="relative overflow-hidden rounded-xl aspect-[4/3] mb-2 shadow-soft-sm bg-muted">
+          {/* Skeleton shimmer */}
+          {showSkeleton && (
+            <div className="absolute inset-0 bg-muted overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-background/30 to-transparent animate-shimmer" />
+            </div>
+          )}
           <img
             src={image}
             alt={name}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className={cn(
+              "w-full h-full object-cover transition-all duration-300",
+              showSkeleton ? "opacity-0" : "opacity-100 group-hover:scale-105"
+            )}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => setImageError(true)}
           />
           {isOpen !== undefined && (
             <span
@@ -75,11 +93,22 @@ export function MarketCard({
       )}
     >
       {/* Image with hover overlay */}
-      <div className="relative overflow-hidden aspect-[16/10]">
+      <div className="relative overflow-hidden aspect-[16/10] bg-muted">
+        {/* Skeleton shimmer */}
+        {showSkeleton && (
+          <div className="absolute inset-0 bg-muted overflow-hidden z-10">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-background/30 to-transparent animate-shimmer" />
+          </div>
+        )}
         <img
           src={image}
           alt={name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+          className={cn(
+            "w-full h-full object-cover transition-all duration-500",
+            showSkeleton ? "opacity-0" : "opacity-100 group-hover:scale-110"
+          )}
+          onLoad={() => setImageLoaded(true)}
+          onError={() => setImageError(true)}
         />
         {/* Hover overlay with quick info */}
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/80 via-foreground/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
