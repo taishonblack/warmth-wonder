@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+// Database market type
 export interface Market {
   id: string;
   name: string;
@@ -18,8 +19,44 @@ export interface Market {
   phone: string | null;
   created_at: string;
   updated_at: string;
+  // Optional fields for OSM data
+  source?: "db" | "osm";
+  confidence?: number;
+  category?: string;
 }
 
+// OSM market type from edge function
+interface OSMMarket {
+  source: "osm";
+  source_id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  category: string;
+  tags: Record<string, string>;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+  };
+  contact?: {
+    phone?: string;
+    website?: string;
+  };
+  opening_hours?: string;
+  confidence: number;
+  is_chain_suspected: boolean;
+}
+
+interface NearbyMarketsResponse {
+  center: { lat: number; lng: number };
+  radius: number;
+  markets: OSMMarket[];
+  fetched_at: string;
+}
+
+// Fetch markets from database
 export function useMarkets(searchQuery?: string) {
   return useQuery({
     queryKey: ["markets", searchQuery],
@@ -39,9 +76,121 @@ export function useMarkets(searchQuery?: string) {
         throw error;
       }
 
-      return data as Market[];
+      return (data as Market[]).map(m => ({ ...m, source: "db" as const }));
     },
   });
+}
+
+// Fetch nearby markets from OSM via edge function
+export function useNearbyMarkets(lat: number | null, lng: number | null, radius: number = 8000) {
+  return useQuery({
+    queryKey: ["nearby-markets", lat?.toFixed(2), lng?.toFixed(2), radius],
+    queryFn: async (): Promise<Market[]> => {
+      if (!lat || !lng) return [];
+
+      const { data, error } = await supabase.functions.invoke<NearbyMarketsResponse>(
+        "nearby-markets",
+        {
+          body: { lat, lng, radius },
+        }
+      );
+
+      if (error) {
+        console.error("Error fetching nearby markets:", error);
+        throw error;
+      }
+
+      if (!data?.markets) return [];
+
+      // Convert OSM markets to our Market type
+      return data.markets.map((m): Market => ({
+        id: m.source_id,
+        name: m.name,
+        description: null,
+        address: m.address?.street || "Address unknown",
+        city: m.address?.city || "",
+        state: m.address?.state || "",
+        zip_code: m.address?.zip || null,
+        lat: m.lat,
+        lng: m.lng,
+        type: mapCategoryToType(m.category),
+        is_open: true, // We can't know this reliably from OSM
+        hours: m.opening_hours || null,
+        website: m.contact?.website || null,
+        phone: m.contact?.phone || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        source: "osm",
+        confidence: m.confidence,
+        category: m.category,
+      }));
+    },
+    enabled: lat !== null && lng !== null,
+    staleTime: 1000 * 60 * 10, // 10 minutes
+  });
+}
+
+// Map OSM category to our market types
+function mapCategoryToType(category: string): string {
+  switch (category) {
+    case "farmers_market":
+      return "farmers";
+    case "farm_shop":
+    case "produce":
+      return "farmers";
+    case "bakery":
+      return "artisan";
+    case "organic":
+    case "health_food":
+      return "artisan";
+    default:
+      return "farmers";
+  }
+}
+
+// Combined hook that merges DB markets with OSM markets
+export function useCombinedMarkets(
+  lat: number | null,
+  lng: number | null,
+  searchQuery?: string,
+  radius: number = 8000
+) {
+  const dbMarkets = useMarkets(searchQuery);
+  const osmMarkets = useNearbyMarkets(lat, lng, radius);
+
+  const isLoading = dbMarkets.isLoading || osmMarkets.isLoading;
+  const error = dbMarkets.error || osmMarkets.error;
+
+  // Merge and deduplicate by proximity
+  const markets = mergeMarkets(dbMarkets.data || [], osmMarkets.data || []);
+
+  return {
+    data: markets,
+    isLoading,
+    error,
+    refetch: async () => {
+      await Promise.all([dbMarkets.refetch(), osmMarkets.refetch()]);
+    },
+  };
+}
+
+// Merge markets, preferring DB entries over OSM for duplicates
+function mergeMarkets(dbMarkets: Market[], osmMarkets: Market[]): Market[] {
+  const result: Market[] = [...dbMarkets.map(m => ({ ...m, source: "db" as const }))];
+  
+  for (const osmMarket of osmMarkets) {
+    // Check if there's a nearby DB market (within ~100m)
+    const isDuplicate = dbMarkets.some((dbm) => {
+      const distance = calculateDistance(dbm.lat, dbm.lng, osmMarket.lat, osmMarket.lng);
+      return distance < 0.1; // 0.1 miles ~ 160 meters
+    });
+
+    if (!isDuplicate) {
+      result.push(osmMarket);
+    }
+  }
+
+  return result;
 }
 
 export function useMarketById(id: string | null) {
