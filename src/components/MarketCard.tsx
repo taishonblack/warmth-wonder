@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Star, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { isMarketOpen } from "@/utils/marketHours";
+import { isMarketOpen, getNextOpenTime } from "@/utils/marketHours";
 
 interface MarketCardProps {
   name: string;
@@ -44,6 +44,14 @@ export function MarketCard({
     return isOpen;
   }, [hours, isOpen]);
 
+  // Get next open time for closed markets
+  const nextOpenTime = useMemo(() => {
+    if (computedIsOpen === false && hours) {
+      return getNextOpenTime(hours);
+    }
+    return null;
+  }, [computedIsOpen, hours]);
+
   const showSkeleton = isLoadingPhoto || (!imageLoaded && !imageError);
 
   if (isMobile) {
@@ -73,16 +81,23 @@ export function MarketCard({
             onError={() => setImageError(true)}
           />
           {computedIsOpen !== undefined && (
-            <span
-              className={cn(
-                "absolute top-2 right-2 px-2 py-0.5 text-xs font-medium rounded-full",
-                computedIsOpen
-                  ? "bg-primary/90 text-primary-foreground"
-                  : "bg-muted/90 text-muted-foreground"
+            <div className="absolute top-2 right-2 flex flex-col items-end gap-0.5">
+              <span
+                className={cn(
+                  "px-2 py-0.5 text-xs font-medium rounded-full",
+                  computedIsOpen
+                    ? "bg-primary/90 text-primary-foreground"
+                    : "bg-muted/90 text-muted-foreground"
+                )}
+              >
+                {computedIsOpen ? "Open" : "Closed"}
+              </span>
+              {nextOpenTime && (
+                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-background/90 text-foreground">
+                  {nextOpenTime}
+                </span>
               )}
-            >
-              {computedIsOpen ? "Open" : "Closed"}
-            </span>
+            </div>
           )}
         </div>
         <h3 className="font-medium text-sm text-foreground truncate group-hover:text-primary transition-colors">
@@ -139,16 +154,23 @@ export function MarketCard({
         </div>
         {/* Status badge */}
         {computedIsOpen !== undefined && (
-          <span
-            className={cn(
-              "absolute top-2 right-2 px-2.5 py-1 text-xs font-medium rounded-full transition-transform duration-300 group-hover:scale-105",
-              computedIsOpen
-                ? "bg-primary/90 text-primary-foreground"
-                : "bg-muted/90 text-muted-foreground"
+          <div className="absolute top-2 right-2 flex flex-col items-end gap-1 transition-transform duration-300 group-hover:scale-105">
+            <span
+              className={cn(
+                "px-2.5 py-1 text-xs font-medium rounded-full",
+                computedIsOpen
+                  ? "bg-primary/90 text-primary-foreground"
+                  : "bg-muted/90 text-muted-foreground"
+              )}
+            >
+              {computedIsOpen ? "Open Now" : "Closed"}
+            </span>
+            {nextOpenTime && (
+              <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-background/90 text-foreground shadow-sm">
+                {nextOpenTime}
+              </span>
             )}
-          >
-            {computedIsOpen ? "Open Now" : "Closed"}
-          </span>
+          </div>
         )}
       </div>
       
