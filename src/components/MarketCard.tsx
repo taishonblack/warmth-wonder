@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Star, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { isMarketOpen } from "@/utils/marketHours";
 
 interface MarketCardProps {
   name: string;
   image: string;
   distance?: string;
   isOpen?: boolean;
+  hours?: string | null;
   rating?: number;
   reviewCount?: number;
   featuredProducts?: string[];
@@ -21,6 +23,7 @@ export function MarketCard({
   image,
   distance,
   isOpen,
+  hours,
   rating = 4.5,
   reviewCount = 128,
   featuredProducts = ["Fresh Produce", "Artisan Bread", "Local Honey"],
@@ -31,6 +34,15 @@ export function MarketCard({
   const isMobile = useIsMobile();
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+
+  // Calculate real-time open status from hours if available
+  const computedIsOpen = useMemo(() => {
+    if (hours) {
+      const realTimeStatus = isMarketOpen(hours);
+      if (realTimeStatus !== null) return realTimeStatus;
+    }
+    return isOpen;
+  }, [hours, isOpen]);
 
   const showSkeleton = isLoadingPhoto || (!imageLoaded && !imageError);
 
@@ -60,16 +72,16 @@ export function MarketCard({
             onLoad={() => setImageLoaded(true)}
             onError={() => setImageError(true)}
           />
-          {isOpen !== undefined && (
+          {computedIsOpen !== undefined && (
             <span
               className={cn(
                 "absolute top-2 right-2 px-2 py-0.5 text-xs font-medium rounded-full",
-                isOpen
+                computedIsOpen
                   ? "bg-primary/90 text-primary-foreground"
                   : "bg-muted/90 text-muted-foreground"
               )}
             >
-              {isOpen ? "Open" : "Closed"}
+              {computedIsOpen ? "Open" : "Closed"}
             </span>
           )}
         </div>
@@ -126,16 +138,16 @@ export function MarketCard({
           </div>
         </div>
         {/* Status badge */}
-        {isOpen !== undefined && (
+        {computedIsOpen !== undefined && (
           <span
             className={cn(
               "absolute top-2 right-2 px-2.5 py-1 text-xs font-medium rounded-full transition-transform duration-300 group-hover:scale-105",
-              isOpen
+              computedIsOpen
                 ? "bg-primary/90 text-primary-foreground"
                 : "bg-muted/90 text-muted-foreground"
             )}
           >
-            {isOpen ? "Open Now" : "Closed"}
+            {computedIsOpen ? "Open Now" : "Closed"}
           </span>
         )}
       </div>

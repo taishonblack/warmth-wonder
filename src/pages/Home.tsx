@@ -97,6 +97,7 @@ const mockFinds = [
 
 interface HomeMarket extends Market {
   image: string;
+  distanceMiles?: number;
 }
 
 export default function Home() {
