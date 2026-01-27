@@ -166,6 +166,36 @@ export type Database = {
           },
         ]
       }
+      osm_cache: {
+        Row: {
+          cache_key: string
+          center_lat: number
+          center_lng: number
+          created_at: string | null
+          id: number
+          radius_m: number
+          response_json: Json
+        }
+        Insert: {
+          cache_key: string
+          center_lat: number
+          center_lng: number
+          created_at?: string | null
+          id?: number
+          radius_m: number
+          response_json: Json
+        }
+        Update: {
+          cache_key?: string
+          center_lat?: number
+          center_lng?: number
+          created_at?: string | null
+          id?: number
+          radius_m?: number
+          response_json?: Json
+        }
+        Relationships: []
+      }
       preferred_markets: {
         Row: {
           created_at: string
