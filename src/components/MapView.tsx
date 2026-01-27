@@ -1,22 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-
-interface Market {
-  id: string;
-  name: string;
-  distance: string;
-  isOpen: boolean;
-  type: string;
-  lat: number;
-  lng: number;
-}
+import { Market } from "@/hooks/useMarkets";
 
 interface MapViewProps {
   markets: Market[];
   selectedMarket: string | null;
   onMarketSelect: (id: string) => void;
   userLocation?: { lat: number; lng: number } | null;
+  showDirections?: boolean;
 }
 
 const pinColors: Record<string, string> = {
@@ -25,7 +17,13 @@ const pinColors: Record<string, string> = {
   artisan: "#C4A77D",   // clay
 };
 
-export function MapView({ markets, selectedMarket, onMarketSelect, userLocation }: MapViewProps) {
+export function MapView({ 
+  markets, 
+  selectedMarket, 
+  onMarketSelect, 
+  userLocation,
+  showDirections = false 
+}: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<mapboxgl.Marker[]>([]);
@@ -47,7 +45,7 @@ export function MapView({ markets, selectedMarket, onMarketSelect, userLocation 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/light-v11",
-      center: userLocation ? [userLocation.lng, userLocation.lat] : [-73.9857, 40.7484], // Default to NYC
+      center: userLocation ? [userLocation.lng, userLocation.lat] : [-73.9857, 40.7484],
       zoom: 12,
     });
 
@@ -55,6 +53,36 @@ export function MapView({ markets, selectedMarket, onMarketSelect, userLocation 
 
     map.current.on("load", () => {
       setMapLoaded(true);
+      
+      // Add directions source and layer
+      if (map.current) {
+        map.current.addSource("route", {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "LineString",
+              coordinates: [],
+            },
+          },
+        });
+
+        map.current.addLayer({
+          id: "route",
+          type: "line",
+          source: "route",
+          layout: {
+            "line-join": "round",
+            "line-cap": "round",
+          },
+          paint: {
+            "line-color": "#7C9A5E",
+            "line-width": 5,
+            "line-opacity": 0.8,
+          },
+        });
+      }
     });
 
     return () => {
@@ -62,6 +90,53 @@ export function MapView({ markets, selectedMarket, onMarketSelect, userLocation 
       map.current = null;
     };
   }, []);
+
+  // Fetch and display directions
+  const fetchDirections = useCallback(async (
+    start: [number, number],
+    end: [number, number]
+  ) => {
+    if (!map.current || !mapLoaded) return;
+
+    const token = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN;
+    const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${start[0]},${start[1]};${end[0]},${end[1]}?geometries=geojson&access_token=${token}`;
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.routes && data.routes.length > 0) {
+        const route = data.routes[0].geometry;
+        const source = map.current.getSource("route") as mapboxgl.GeoJSONSource;
+        if (source) {
+          source.setData({
+            type: "Feature",
+            properties: {},
+            geometry: route,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching directions:", error);
+    }
+  }, [mapLoaded]);
+
+  // Clear directions
+  const clearDirections = useCallback(() => {
+    if (!map.current || !mapLoaded) return;
+    
+    const source = map.current.getSource("route") as mapboxgl.GeoJSONSource;
+    if (source) {
+      source.setData({
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: [],
+        },
+      });
+    }
+  }, [mapLoaded]);
 
   // Update user location marker
   useEffect(() => {
@@ -125,11 +200,12 @@ export function MapView({ markets, selectedMarket, onMarketSelect, userLocation 
           new mapboxgl.Popup({ offset: 25, closeButton: false }).setHTML(`
             <div class="p-2">
               <h3 class="font-medium text-sm">${market.name}</h3>
-              <p class="text-xs text-gray-500">${market.distance}</p>
+              <p class="text-xs text-gray-500">${market.address}</p>
+              ${market.hours ? `<p class="text-xs text-gray-400 mt-1">${market.hours}</p>` : ""}
               <span class="inline-block mt-1 px-2 py-0.5 rounded-full text-xs ${
-                market.isOpen ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
+                market.is_open ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-600"
               }">
-                ${market.isOpen ? "Open" : "Closed"}
+                ${market.is_open ? "Open" : "Closed"}
               </span>
             </div>
           `)
@@ -140,9 +216,12 @@ export function MapView({ markets, selectedMarket, onMarketSelect, userLocation 
     });
   }, [markets, selectedMarket, mapLoaded, onMarketSelect]);
 
-  // Fly to selected market
+  // Fly to selected market and show directions
   useEffect(() => {
-    if (!map.current || !mapLoaded || !selectedMarket) return;
+    if (!map.current || !mapLoaded || !selectedMarket) {
+      clearDirections();
+      return;
+    }
 
     const market = markets.find((m) => m.id === selectedMarket);
     if (market) {
@@ -151,8 +230,16 @@ export function MapView({ markets, selectedMarket, onMarketSelect, userLocation 
         zoom: 14,
         duration: 1000,
       });
+
+      // Show directions if user location available and showDirections is true
+      if (showDirections && userLocation) {
+        fetchDirections(
+          [userLocation.lng, userLocation.lat],
+          [market.lng, market.lat]
+        );
+      }
     }
-  }, [selectedMarket, markets, mapLoaded]);
+  }, [selectedMarket, markets, mapLoaded, userLocation, showDirections, fetchDirections, clearDirections]);
 
   return (
     <div ref={mapContainer} className="absolute inset-0" />

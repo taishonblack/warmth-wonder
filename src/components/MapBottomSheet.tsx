@@ -1,177 +1,203 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Filter, X } from "lucide-react";
+import { ChevronUp, ChevronDown, MapPin, Clock, Navigation, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface Market {
-  id: string;
-  name: string;
-  distance: string;
-  isOpen: boolean;
-  type: string;
-}
+import { Market, calculateDistance } from "@/hooks/useMarkets";
 
 interface MapBottomSheetProps {
   markets: Market[];
+  selectedMarket: string | null;
   onMarketSelect: (id: string) => void;
-  className?: string;
+  userLocation?: { lat: number; lng: number } | null;
+  onGetDirections?: (marketId: string) => void;
 }
 
-export function MapBottomSheet({
-  markets,
+export function MapBottomSheet({ 
+  markets, 
+  selectedMarket,
   onMarketSelect,
-  className,
+  userLocation,
+  onGetDirections 
 }: MapBottomSheetProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
-  const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState({
-    openNow: false,
-    organic: false,
-    type: "",
-    radius: "5",
-  });
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<string>("all");
 
-  const filteredMarkets = markets.filter((market) => {
-    if (filters.openNow && !market.isOpen) return false;
-    if (filters.type && market.type !== filters.type) return false;
-    return true;
-  });
+  const filters = [
+    { id: "all", label: "All" },
+    { id: "farmers", label: "Farmers" },
+    { id: "artisan", label: "Artisan" },
+    { id: "flea", label: "Flea" },
+    { id: "open", label: "Open Now" },
+  ];
+
+  const filteredMarkets = markets
+    .filter((market) => {
+      if (activeFilter === "all") return true;
+      if (activeFilter === "open") return market.is_open;
+      return market.type === activeFilter;
+    })
+    .map((market) => ({
+      ...market,
+      distance: userLocation
+        ? calculateDistance(
+            userLocation.lat,
+            userLocation.lng,
+            market.lat,
+            market.lng
+          )
+        : null,
+    }))
+    .sort((a, b) => {
+      if (a.distance && b.distance) return a.distance - b.distance;
+      return 0;
+    });
+
+  const selectedMarketData = markets.find((m) => m.id === selectedMarket);
 
   return (
     <div
       className={cn(
-        "fixed bottom-16 left-0 right-0 z-40 bg-card rounded-t-3xl shadow-soft-lg transition-all duration-300",
-        isExpanded ? "h-[50vh]" : "h-28",
-        className
+        "absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl shadow-lg transition-all duration-300 z-10",
+        isExpanded ? "h-[60vh]" : selectedMarketData ? "h-auto" : "h-48"
       )}
     >
       {/* Handle */}
-      <div className="flex justify-center pt-2 pb-1">
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="w-10 h-1 bg-border rounded-full"
-        />
-      </div>
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex justify-center py-3"
+      >
+        <div className="w-12 h-1.5 bg-muted-foreground/30 rounded-full" />
+      </button>
 
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1.5 -m-1.5 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {isExpanded ? (
-              <ChevronDown className="w-5 h-5" />
-            ) : (
-              <ChevronUp className="w-5 h-5" />
+      {/* Selected Market Detail */}
+      {selectedMarketData && !isExpanded && (
+        <div className="px-4 pb-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg text-foreground">
+                {selectedMarketData.name}
+              </h3>
+              <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                <MapPin className="w-4 h-4" />
+                {selectedMarketData.address}, {selectedMarketData.city}
+              </p>
+              {selectedMarketData.hours && (
+                <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                  <Clock className="w-4 h-4" />
+                  {selectedMarketData.hours}
+                </p>
+              )}
+              <div className="flex items-center gap-2 mt-2">
+                <span
+                  className={cn(
+                    "inline-block px-2 py-0.5 rounded-full text-xs",
+                    selectedMarketData.is_open
+                      ? "bg-primary/20 text-primary"
+                      : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {selectedMarketData.is_open ? "Open" : "Closed"}
+                </span>
+                <span className="text-xs text-muted-foreground capitalize">
+                  {selectedMarketData.type} market
+                </span>
+              </div>
+            </div>
+            {onGetDirections && (
+              <button
+                onClick={() => onGetDirections(selectedMarketData.id)}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-medium"
+              >
+                <Navigation className="w-4 h-4" />
+                Directions
+              </button>
             )}
-          </button>
-          <h3 className="font-medium text-foreground">
-            {filteredMarkets.length} Markets
-          </h3>
-        </div>
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors",
-            showFilters
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Filter className="w-4 h-4" />
-          Filters
-        </button>
-      </div>
-
-      {/* Filters */}
-      {showFilters && (
-        <div className="px-4 py-3 border-y border-border bg-muted/30 animate-fade-in">
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() =>
-                setFilters((f) => ({ ...f, openNow: !f.openNow }))
-              }
-              className={cn(
-                "px-3 py-1.5 rounded-full text-sm font-medium transition-colors",
-                filters.openNow
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-card text-foreground border border-border"
-              )}
-            >
-              Open now
-            </button>
-            <button
-              onClick={() =>
-                setFilters((f) => ({ ...f, organic: !f.organic }))
-              }
-              className={cn(
-                "px-3 py-1.5 rounded-full text-sm font-medium transition-colors",
-                filters.organic
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-card text-foreground border border-border"
-              )}
-            >
-              Organic
-            </button>
-            <select
-              value={filters.type}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, type: e.target.value }))
-              }
-              className="px-3 py-1.5 rounded-full text-sm bg-card text-foreground border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option value="">All types</option>
-              <option value="farmers">Farmers Market</option>
-              <option value="flea">Flea Market</option>
-              <option value="artisan">Artisan Market</option>
-            </select>
-            <select
-              value={filters.radius}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, radius: e.target.value }))
-              }
-              className="px-3 py-1.5 rounded-full text-sm bg-card text-foreground border border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option value="1">1 mile</option>
-              <option value="5">5 miles</option>
-              <option value="10">10 miles</option>
-              <option value="25">25 miles</option>
-            </select>
           </div>
+          {selectedMarketData.description && (
+            <p className="text-sm text-muted-foreground mt-3">
+              {selectedMarketData.description}
+            </p>
+          )}
         </div>
       )}
 
-      {/* Market List */}
-      {isExpanded && (
-        <div className="overflow-y-auto h-[calc(100%-4rem)] px-4 py-2 scrollbar-hide">
-          <div className="space-y-2">
+      {/* Expanded Content */}
+      {(isExpanded || !selectedMarketData) && (
+        <div className="px-4 pb-4 h-full overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-lg text-foreground">
+              Nearby Markets
+            </h2>
+            <button onClick={() => setIsExpanded(!isExpanded)}>
+              {isExpanded ? (
+                <ChevronDown className="w-5 h-5 text-muted-foreground" />
+              ) : (
+                <ChevronUp className="w-5 h-5 text-muted-foreground" />
+              )}
+            </button>
+          </div>
+
+          {/* Filters */}
+          <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
+            {filters.map((filter) => (
+              <button
+                key={filter.id}
+                onClick={() => setActiveFilter(filter.id)}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors",
+                  activeFilter === filter.id
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Market List */}
+          <div className="flex-1 overflow-y-auto space-y-3">
             {filteredMarkets.map((market) => (
               <button
                 key={market.id}
                 onClick={() => onMarketSelect(market.id)}
-                className="w-full flex items-center gap-3 p-3 bg-muted/50 hover:bg-muted rounded-xl transition-colors text-left"
+                className={cn(
+                  "w-full p-3 rounded-xl text-left transition-colors",
+                  selectedMarket === market.id
+                    ? "bg-primary/10 border border-primary/30"
+                    : "bg-muted/50 hover:bg-muted"
+                )}
               >
-                <div className="w-12 h-12 bg-blush rounded-lg flex items-center justify-center text-xl">
-                  🏪
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm text-foreground truncate">
-                    {market.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {market.distance}
-                  </p>
-                </div>
-                <span
-                  className={cn(
-                    "px-2 py-0.5 rounded-full text-xs font-medium",
-                    market.isOpen
-                      ? "bg-primary/10 text-primary"
-                      : "bg-muted text-muted-foreground"
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-medium text-foreground">
+                      {market.name}
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {market.address}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span
+                        className={cn(
+                          "inline-block px-2 py-0.5 rounded-full text-xs",
+                          market.is_open
+                            ? "bg-primary/20 text-primary"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {market.is_open ? "Open" : "Closed"}
+                      </span>
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {market.type}
+                      </span>
+                    </div>
+                  </div>
+                  {market.distance !== null && (
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">
+                      {market.distance.toFixed(1)} mi
+                    </span>
                   )}
-                >
-                  {market.isOpen ? "Open" : "Closed"}
-                </span>
+                </div>
               </button>
             ))}
           </div>
