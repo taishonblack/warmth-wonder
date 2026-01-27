@@ -49,6 +49,7 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [localBirthday, setLocalBirthday] = useState("");
   const [localZipCode, setLocalZipCode] = useState("");
+  const [localBio, setLocalBio] = useState("");
   const [localRadius, setLocalRadius] = useState([25]);
   const [followedUsers, setFollowedUsers] = useState<FollowedUser[]>([]);
   const [userFinds, setUserFinds] = useState<UserFind[]>([]);
@@ -114,6 +115,7 @@ export default function Profile() {
     if (profile) {
       setLocalBirthday(profile.birthday || "");
       setLocalZipCode(profile.zip_code || "");
+      setLocalBio(profile.bio || "");
       setLocalRadius([profile.radius_miles || 25]);
     }
   }, [profile]);
@@ -127,6 +129,7 @@ export default function Profile() {
     await updateProfile({
       birthday: localBirthday || null,
       zip_code: localZipCode || null,
+      bio: localBio || null,
       radius_miles: localRadius[0],
     });
     setIsEditing(false);
@@ -213,10 +216,20 @@ export default function Profile() {
             </div>
           </div>
 
-          <p className="mt-4 text-sm text-foreground leading-relaxed">
-            Weekend market explorer 🌿 Finding the best local produce and artisan
-            goods in the city. Always on the hunt for the perfect loaf of bread.
-          </p>
+          {isEditing ? (
+            <textarea
+              value={localBio}
+              onChange={(e) => setLocalBio(e.target.value)}
+              placeholder="Write a short bio about yourself..."
+              className="mt-4 w-full text-sm text-foreground leading-relaxed bg-muted/50 rounded-lg p-3 border border-border resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+              rows={3}
+              maxLength={200}
+            />
+          ) : (
+            <p className="mt-4 text-sm text-foreground leading-relaxed">
+              {profile?.bio || "Weekend market explorer 🌿 Finding the best local produce and artisan goods in the city."}
+            </p>
+          )}
 
           <Button
             variant="outline"
