@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapPin, Loader2 } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
@@ -18,6 +18,8 @@ import { useCombinedMarkets, calculateDistance, Market } from "@/hooks/useMarket
 import { useFinds } from "@/hooks/useFinds";
 import { useMarketPhotos } from "@/hooks/useMarketPhoto";
 import { useReverseGeocode } from "@/hooks/useReverseGeocode";
+import { useProfile } from "@/hooks/useProfile";
+import { useAuth } from "@/hooks/useAuth";
 
 // Import images
 import nearishLogo from "@/assets/nearish-logo.png";
@@ -108,6 +110,9 @@ export default function Home() {
     glutenFree: false,
   });
   
+  const { user } = useAuth();
+  const { profile, updateProfile } = useProfile();
+  
   const { 
     latitude, 
     longitude, 
@@ -121,9 +126,37 @@ export default function Home() {
   const isMobile = useIsMobile();
   const { location: locationInfo, isLoading: locationLoading } = useReverseGeocode(latitude, longitude);
 
+  // Load saved zip code location on mount
+  useEffect(() => {
+    const loadSavedZipLocation = async () => {
+      if (profile?.zip_code && !latitude && !longitude) {
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?postalcode=${profile.zip_code}&country=US&format=json&limit=1`,
+            { headers: { "User-Agent": "Nearish App" } }
+          );
+          const data = await response.json();
+          if (data?.[0]) {
+            setManualLocation(parseFloat(data[0].lat), parseFloat(data[0].lon), "zip");
+          }
+        } catch (err) {
+          console.error("Failed to geocode saved zip:", err);
+        }
+      }
+    };
+    
+    loadSavedZipLocation();
+  }, [profile?.zip_code]);
+
   const handleLocationChange = (lat: number, lng: number, source: "zip" | "gps") => {
     if (source === "zip") {
       setManualLocation(lat, lng, "zip");
+    }
+  };
+
+  const handleSaveZipCode = async (zipCode: string) => {
+    if (user) {
+      await updateProfile({ zip_code: zipCode });
     }
   };
 
@@ -292,8 +325,10 @@ export default function Home() {
               <LocationControl
                 onLocationChange={handleLocationChange}
                 onUseGps={handleUseGps}
+                onSaveZipCode={user ? handleSaveZipCode : undefined}
                 isLoading={geoLoading}
                 currentSource={locationSource}
+                savedZipCode={profile?.zip_code}
               />
             }
             className="mb-3"
