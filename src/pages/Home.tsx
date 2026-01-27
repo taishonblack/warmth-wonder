@@ -16,6 +16,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useCombinedMarkets, calculateDistance, Market } from "@/hooks/useMarkets";
 import { useFinds } from "@/hooks/useFinds";
 import { useMarketPhotos } from "@/hooks/useMarketPhoto";
+import { useReverseGeocode } from "@/hooks/useReverseGeocode";
 
 // Import images
 import nearishLogo from "@/assets/nearish-logo.png";
@@ -109,6 +110,7 @@ export default function Home() {
   const { latitude, longitude, loading: geoLoading, error: geoError } = useGeolocation();
   const { radius } = useProximitySettings();
   const isMobile = useIsMobile();
+  const { location: locationInfo, isLoading: locationLoading } = useReverseGeocode(latitude, longitude);
   
   // Fetch real market data
   const { data: markets = [], isLoading: marketsLoading } = useCombinedMarkets(
@@ -218,15 +220,22 @@ export default function Home() {
             </div>
             {/* Geolocation indicator */}
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              {geoLoading ? (
+              {geoLoading || locationLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Locating...</span>
+                  <span className="text-xs">Locating...</span>
                 </>
               ) : geoError ? (
                 <>
                   <MapPin className="w-4 h-4 text-accent" />
                   <span className="text-xs">{geoError}</span>
+                </>
+              ) : locationInfo ? (
+                <>
+                  <MapPin className="w-4 h-4 text-secondary" />
+                  <span className="text-xs font-medium truncate max-w-[120px]">
+                    {locationInfo.displayName}
+                  </span>
                 </>
               ) : (
                 <>
