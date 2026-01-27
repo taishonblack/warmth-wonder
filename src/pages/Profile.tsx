@@ -1,4 +1,4 @@
-import { Settings, ChevronRight, MapPin, Calendar, Heart, ArrowLeft, Loader2 } from "lucide-react";
+import { Settings, ChevronRight, MapPin, Calendar, Heart, ArrowLeft, Loader2, ImageOff } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -14,25 +14,13 @@ import { useFollows } from "@/hooks/useFollows";
 import { TrustBadge, computeTrustBadges } from "@/components/TrustBadge";
 import { supabase } from "@/integrations/supabase/client";
 
-// Import images for My Finds (mock for now)
-import find1 from "@/assets/find-1.jpg";
-import find2 from "@/assets/find-2.jpg";
-import find3 from "@/assets/find-3.jpg";
-import find4 from "@/assets/find-4.jpg";
-import find5 from "@/assets/find-5.jpg";
-import find6 from "@/assets/find-6.jpg";
-
-// Mock user finds organized by date (will be replaced with real data later)
-const userFinds = [
-  { id: "1", image: find1, date: "2024-01-25" },
-  { id: "2", image: find2, date: "2024-01-24" },
-  { id: "3", image: find3, date: "2024-01-23" },
-  { id: "4", image: find4, date: "2024-01-22" },
-  { id: "5", image: find5, date: "2024-01-21" },
-  { id: "6", image: find6, date: "2024-01-20" },
-  { id: "7", image: find1, date: "2024-01-19" },
-  { id: "8", image: find2, date: "2024-01-18" },
-];
+interface UserFind {
+  id: string;
+  images: string[];
+  created_at: string;
+  caption: string;
+  market_name: string;
+}
 
 interface FollowedUser {
   id: string;
@@ -62,6 +50,8 @@ export default function Profile() {
   const [localZipCode, setLocalZipCode] = useState("");
   const [localRadius, setLocalRadius] = useState([25]);
   const [followedUsers, setFollowedUsers] = useState<FollowedUser[]>([]);
+  const [userFinds, setUserFinds] = useState<UserFind[]>([]);
+  const [findsLoading, setFindsLoading] = useState(true);
 
   // Compute trust badges based on real stats
   const badges = computeTrustBadges({
@@ -92,6 +82,30 @@ export default function Profile() {
 
     fetchFollowedProfiles();
   }, [following]);
+
+  // Fetch user's real finds
+  useEffect(() => {
+    const fetchUserFinds = async () => {
+      if (!user?.id) {
+        setFindsLoading(false);
+        return;
+      }
+      
+      setFindsLoading(true);
+      const { data, error } = await supabase
+        .from("finds")
+        .select("id, images, created_at, caption, market_name")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      
+      if (data && !error) {
+        setUserFinds(data);
+      }
+      setFindsLoading(false);
+    };
+
+    fetchUserFinds();
+  }, [user?.id]);
 
   // Sync local state with profile data
   useEffect(() => {
@@ -359,20 +373,32 @@ export default function Profile() {
           <p className="text-sm text-muted-foreground mb-3">
             Organized by most recent
           </p>
-          <div className="grid grid-cols-4 gap-2">
-            {userFinds.map((find) => (
-              <button
-                key={find.id}
-                className="aspect-square rounded-lg overflow-hidden shadow-soft-sm group"
-              >
-                <img
-                  src={find.image}
-                  alt="Find"
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                />
-              </button>
-            ))}
-          </div>
+          {findsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : userFinds.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+              <ImageOff className="w-10 h-10 mb-2" />
+              <p className="text-sm">No finds yet</p>
+              <p className="text-xs">Share your first discovery!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-2">
+              {userFinds.map((find) => (
+                <button
+                  key={find.id}
+                  className="aspect-square rounded-lg overflow-hidden shadow-soft-sm group"
+                >
+                  <img
+                    src={find.images[0] || "/placeholder.svg"}
+                    alt={find.caption || "Find"}
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Membership CTA */}
