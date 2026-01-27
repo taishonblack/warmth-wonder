@@ -4,9 +4,11 @@ import { MasonryGrid } from "@/components/MasonryGrid";
 import { MasonryFindItem } from "@/components/MasonryFindItem";
 import { FindDetailPopup } from "@/components/FindDetailPopup";
 import { StoriesRow } from "@/components/StoriesRow";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useFinds } from "@/hooks/useFinds";
-import { Loader2 } from "lucide-react";
+import { useFollows } from "@/hooks/useFollows";
+import { Loader2, Users } from "lucide-react";
 
 // Import images for fallback/mock data
 import find1 from "@/assets/find-1.jpg";
@@ -107,6 +109,8 @@ export default function Finds() {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const { finds, loading, toggleThanks } = useFinds();
+  const { following } = useFollows();
+  const [activeTab, setActiveTab] = useState<"for-you" | "following">("for-you");
   const [selectedFind, setSelectedFind] = useState<{
     id: string;
     image: string;
@@ -119,12 +123,20 @@ export default function Finds() {
   } | null>(null);
 
   // Use real finds if available, otherwise show mock data
-  const displayFinds = finds.length > 0 ? finds : mockFinds;
+  const allFinds = finds.length > 0 ? finds : mockFinds;
+
+  // Filter finds based on active tab
+  const displayFinds = useMemo(() => {
+    if (activeTab === "following") {
+      return allFinds.filter(find => following.includes(find.author.userId));
+    }
+    return allFinds;
+  }, [allFinds, activeTab, following]);
 
   // Extract unique recent posters for stories row
   const storyUsers = useMemo(() => {
     const seenUsers = new Set<string>();
-    return displayFinds
+    return allFinds
       .filter(find => {
         if (seenUsers.has(find.author.userId)) return false;
         seenUsers.add(find.author.userId);
@@ -135,9 +147,9 @@ export default function Finds() {
         userId: find.author.userId,
         name: find.author.name,
         avatar: find.author.avatar,
-        hasNewContent: true, // Could track this properly later
+        hasNewContent: true,
       }));
-  }, [displayFinds]);
+  }, [allFinds]);
 
   const handleFindClick = (find: typeof displayFinds[0]) => {
     setSelectedFind({
@@ -172,13 +184,26 @@ export default function Finds() {
 
       {/* Desktop header */}
       {!isMobile && (
-        <div className="mb-6">
+        <div className="mb-4">
           <h1 className="font-serif text-3xl font-bold text-primary">Finds</h1>
           <p className="text-muted-foreground mt-1">
             Discover what your community is finding
           </p>
         </div>
       )}
+
+      {/* Tabs */}
+      <div className={isMobile ? "px-4 pt-3" : "mb-4"}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "for-you" | "following")}>
+          <TabsList className="w-full max-w-xs">
+            <TabsTrigger value="for-you" className="flex-1">For You</TabsTrigger>
+            <TabsTrigger value="following" className="flex-1">
+              <Users className="w-4 h-4 mr-1.5" />
+              Following
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
       {/* Loading state */}
       {loading && (
@@ -187,8 +212,8 @@ export default function Finds() {
         </div>
       )}
 
-      {/* Stories Row */}
-      {!loading && storyUsers.length > 0 && (
+      {/* Stories Row - only on For You tab */}
+      {!loading && storyUsers.length > 0 && activeTab === "for-you" && (
         <StoriesRow 
           users={storyUsers} 
           className="border-b border-border" 
@@ -196,8 +221,8 @@ export default function Finds() {
       )}
 
       {/* Masonry Feed */}
-      {!loading && (
-        <div className={isMobile ? "px-4 py-4" : ""}>
+      {!loading && displayFinds.length > 0 && (
+        <div className={isMobile ? "px-4 py-4" : "pt-4"}>
           <MasonryGrid columns={columns} gap={12}>
             {displayFinds.map((find) => (
               <MasonryFindItem
@@ -218,8 +243,16 @@ export default function Finds() {
         </div>
       )}
 
-      {/* Empty state */}
-      {!loading && finds.length === 0 && (
+      {/* Empty states */}
+      {!loading && displayFinds.length === 0 && activeTab === "following" && (
+        <div className="text-center py-12 text-muted-foreground">
+          <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+          <p className="font-medium">No finds from people you follow</p>
+          <p className="text-sm mt-1">Follow more users to see their finds here!</p>
+        </div>
+      )}
+
+      {!loading && finds.length === 0 && activeTab === "for-you" && (
         <div className="text-center py-8 text-muted-foreground">
           <p className="text-sm">Showing sample finds. Be the first to share!</p>
         </div>

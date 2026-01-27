@@ -10,6 +10,7 @@ interface Profile {
   birthday: string | null;
   zip_code: string | null;
   radius_miles: number;
+  bio: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -19,7 +20,7 @@ interface UseProfileReturn {
   preferredMarkets: string[];
   loading: boolean;
   saving: boolean;
-  updateProfile: (updates: Partial<Pick<Profile, 'birthday' | 'zip_code' | 'radius_miles' | 'display_name' | 'avatar_url'>>) => Promise<void>;
+  updateProfile: (updates: Partial<Pick<Profile, 'birthday' | 'zip_code' | 'radius_miles' | 'display_name' | 'avatar_url' | 'bio'>>) => Promise<void>;
   addPreferredMarket: (marketName: string) => Promise<void>;
   removePreferredMarket: (marketName: string) => Promise<void>;
   togglePreferredMarket: (marketName: string) => Promise<void>;
@@ -82,7 +83,7 @@ export function useProfile(): UseProfileReturn {
     return () => subscription.unsubscribe();
   }, []);
 
-  const updateProfile = async (updates: Partial<Pick<Profile, 'birthday' | 'zip_code' | 'radius_miles' | 'display_name' | 'avatar_url'>>) => {
+  const updateProfile = async (updates: Partial<Pick<Profile, 'birthday' | 'zip_code' | 'radius_miles' | 'display_name' | 'avatar_url' | 'bio'>>) => {
     try {
       setSaving(true);
       const { data: { user } } = await supabase.auth.getUser();
