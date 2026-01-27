@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { MapBottomSheet } from "@/components/MapBottomSheet";
+import { MapSidePanel } from "@/components/MapSidePanel";
 import { MapLegend } from "@/components/MapLegend";
 import { MapView } from "@/components/MapView";
 import { MapSearchBar } from "@/components/MapSearchBar";
@@ -7,6 +8,7 @@ import { DietFilterBar, DietFilters } from "@/components/DietFilterBar";
 import { ClaimMarketModal } from "@/components/ClaimMarketModal";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useCombinedMarkets, Market } from "@/hooks/useMarkets";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Loader2, MapPin } from "lucide-react";
 
 export default function MapPage() {
@@ -21,6 +23,7 @@ export default function MapPage() {
   });
   
   const { latitude, longitude, loading: geoLoading, error: geoError } = useGeolocation();
+  const isMobile = useIsMobile();
   
   const { 
     data: markets = [], 
@@ -62,8 +65,20 @@ export default function MapPage() {
 
   return (
     <div className="h-screen bg-muted relative overflow-hidden">
+      {/* Desktop Side Panel */}
+      {!isMobile && (
+        <MapSidePanel
+          markets={markets}
+          selectedMarket={selectedMarket}
+          onMarketSelect={handleMarketSelect}
+          userLocation={userLocation}
+          onGetDirections={handleGetDirections}
+          onClaimMarket={handleClaimMarket}
+        />
+      )}
+
       {/* Search Bar */}
-      <div className="absolute top-4 left-4 right-4 z-20 space-y-2">
+      <div className="absolute top-4 left-4 right-4 z-20 space-y-2 md:left-auto md:right-4 md:w-80 lg:w-96">
         <MapSearchBar
           markets={markets}
           onMarketSelect={handleMarketSelect}
@@ -77,7 +92,7 @@ export default function MapPage() {
 
       {/* Location Error Banner */}
       {geoError && (
-        <div className="absolute top-32 left-4 right-4 z-20 bg-secondary/90 text-secondary-foreground px-4 py-2 rounded-xl flex items-center gap-2 text-sm">
+        <div className="absolute top-32 left-4 right-4 z-20 bg-secondary/90 text-secondary-foreground px-4 py-2 rounded-xl flex items-center gap-2 text-sm md:left-auto md:right-4 md:w-80 lg:w-96">
           <MapPin className="w-4 h-4" />
           <span>Location unavailable. Showing NYC markets.</span>
         </div>
@@ -95,15 +110,17 @@ export default function MapPage() {
       {/* Legend */}
       <MapLegend />
 
-      {/* Bottom Sheet */}
-      <MapBottomSheet
-        markets={markets}
-        selectedMarket={selectedMarket}
-        onMarketSelect={handleMarketSelect}
-        userLocation={userLocation}
-        onGetDirections={handleGetDirections}
-        onClaimMarket={handleClaimMarket}
-      />
+      {/* Bottom Sheet - Mobile Only */}
+      {isMobile && (
+        <MapBottomSheet
+          markets={markets}
+          selectedMarket={selectedMarket}
+          onMarketSelect={handleMarketSelect}
+          userLocation={userLocation}
+          onGetDirections={handleGetDirections}
+          onClaimMarket={handleClaimMarket}
+        />
+      )}
 
       {/* Claim Market Modal */}
       <ClaimMarketModal
