@@ -1,21 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 interface GeolocationState {
   latitude: number | null;
   longitude: number | null;
   error: string | null;
   loading: boolean;
+  source: "gps" | "zip" | "manual" | null;
 }
 
-export function useGeolocation() {
+interface UseGeolocationReturn extends GeolocationState {
+  refreshLocation: () => void;
+  setManualLocation: (lat: number, lng: number, source?: "zip" | "manual") => void;
+  clearManualLocation: () => void;
+}
+
+export function useGeolocation(): UseGeolocationReturn {
   const [state, setState] = useState<GeolocationState>({
     latitude: null,
     longitude: null,
     error: null,
     loading: true,
+    source: null,
   });
 
-  useEffect(() => {
+  const fetchGpsLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setState((prev) => ({
         ...prev,
@@ -25,12 +33,15 @@ export function useGeolocation() {
       return;
     }
 
+    setState((prev) => ({ ...prev, loading: true, error: null }));
+
     const successHandler = (position: GeolocationPosition) => {
       setState({
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         error: null,
         loading: false,
+        source: "gps",
       });
     };
 
@@ -61,5 +72,31 @@ export function useGeolocation() {
     });
   }, []);
 
-  return state;
+  useEffect(() => {
+    fetchGpsLocation();
+  }, [fetchGpsLocation]);
+
+  const setManualLocation = useCallback(
+    (lat: number, lng: number, source: "zip" | "manual" = "manual") => {
+      setState({
+        latitude: lat,
+        longitude: lng,
+        error: null,
+        loading: false,
+        source,
+      });
+    },
+    []
+  );
+
+  const clearManualLocation = useCallback(() => {
+    fetchGpsLocation();
+  }, [fetchGpsLocation]);
+
+  return {
+    ...state,
+    refreshLocation: fetchGpsLocation,
+    setManualLocation,
+    clearManualLocation,
+  };
 }
