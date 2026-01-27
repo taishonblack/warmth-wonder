@@ -131,10 +131,16 @@ export default function Home() {
     const loadSavedZipLocation = async () => {
       if (profile?.zip_code && !latitude && !longitude) {
         try {
+          // Use edge function to proxy geocoding requests (avoids CORS)
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/search?postalcode=${profile.zip_code}&country=US&format=json&limit=1`,
-            { headers: { "User-Agent": "Nearish App" } }
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/geocode?type=forward&postalcode=${profile.zip_code}&country=US`,
+            {
+              headers: {
+                'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              },
+            }
           );
+          if (!response.ok) throw new Error('Geocoding failed');
           const data = await response.json();
           if (data?.[0]) {
             setManualLocation(parseFloat(data[0].lat), parseFloat(data[0].lon), "zip");

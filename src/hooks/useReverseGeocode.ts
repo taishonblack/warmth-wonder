@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface LocationInfo {
   neighborhood?: string;
@@ -26,22 +27,32 @@ export function useReverseGeocode(
       setIsLoading(true);
       
       try {
-        // Use OpenStreetMap Nominatim for free reverse geocoding
+        // Use edge function to proxy geocoding requests (avoids CORS)
+        const { data, error } = await supabase.functions.invoke('geocode', {
+          body: null,
+          headers: {},
+        });
+
+        // Build URL with query params for GET-like request via invoke
         const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=14&addressdetails=1`,
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/geocode?type=reverse&lat=${latitude}&lon=${longitude}`,
           {
             headers: {
-              "User-Agent": "Nearish App",
+              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
             },
           }
         );
 
         if (cancelled) return;
 
-        const data = await response.json();
+        if (!response.ok) {
+          throw new Error('Geocoding failed');
+        }
+
+        const result = await response.json();
         
-        if (data?.address) {
-          const { neighbourhood, suburb, city, town, village, county, state } = data.address;
+        if (result?.address) {
+          const { neighbourhood, suburb, city, town, village, county, state } = result.address;
           
           // Prioritize neighborhood > suburb > city/town
           const neighborhood = neighbourhood || suburb;

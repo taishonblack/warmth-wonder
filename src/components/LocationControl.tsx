@@ -54,15 +54,19 @@ export function LocationControl({
     setIsGeocoding(true);
 
     try {
-      // Use OpenStreetMap Nominatim for free geocoding
+      // Use edge function to proxy geocoding requests (avoids CORS)
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?postalcode=${zipCode.trim()}&country=US&format=json&limit=1`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/geocode?type=forward&postalcode=${zipCode.trim()}&country=US`,
         {
           headers: {
-            "User-Agent": "Nearish App",
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
         }
       );
+
+      if (!response.ok) {
+        throw new Error('Geocoding failed');
+      }
 
       const data = await response.json();
 
