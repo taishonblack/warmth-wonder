@@ -10,6 +10,7 @@ import { FindDetailPopup } from "@/components/FindDetailPopup";
 import { MarketDetailPopup } from "@/components/MarketDetailPopup";
 import { DietFilterBar, DietFilters } from "@/components/DietFilterBar";
 import { ClaimMarketModal } from "@/components/ClaimMarketModal";
+import { LocationControl } from "@/components/LocationControl";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useProximitySettings } from "@/hooks/useProximitySettings";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -107,10 +108,28 @@ export default function Home() {
     glutenFree: false,
   });
   
-  const { latitude, longitude, loading: geoLoading, error: geoError } = useGeolocation();
+  const { 
+    latitude, 
+    longitude, 
+    loading: geoLoading, 
+    error: geoError,
+    source: locationSource,
+    setManualLocation,
+    refreshLocation,
+  } = useGeolocation();
   const { radius } = useProximitySettings();
   const isMobile = useIsMobile();
   const { location: locationInfo, isLoading: locationLoading } = useReverseGeocode(latitude, longitude);
+
+  const handleLocationChange = (lat: number, lng: number, source: "zip" | "gps") => {
+    if (source === "zip") {
+      setManualLocation(lat, lng, "zip");
+    }
+  };
+
+  const handleUseGps = () => {
+    refreshLocation();
+  };
   
   // Fetch real market data
   const { data: markets = [], isLoading: marketsLoading } = useCombinedMarkets(
@@ -269,6 +288,14 @@ export default function Home() {
           <SectionHeader
             title="Near you"
             action={{ label: "See all", onClick: () => navigate("/map?filter=nearby") }}
+            extra={
+              <LocationControl
+                onLocationChange={handleLocationChange}
+                onUseGps={handleUseGps}
+                isLoading={geoLoading}
+                currentSource={locationSource}
+              />
+            }
             className="mb-3"
           />
           {nearbyMarkets.length > 0 ? (
