@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Loader2, ChevronRight } from "lucide-react";
+import { MapPin, Loader2 } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
-import { MarketCard } from "@/components/MarketCard";
+import { MarketCarousel } from "@/components/MarketCarousel";
 import { FindGridItem } from "@/components/FindGridItem";
 import { SectionHeader } from "@/components/SectionHeader";
 import { FindDetailPopup } from "@/components/FindDetailPopup";
@@ -14,13 +14,6 @@ import { useProximitySettings } from "@/hooks/useProximitySettings";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCombinedMarkets, calculateDistance, Market } from "@/hooks/useMarkets";
 import { useFinds } from "@/hooks/useFinds";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
 
 // Import images
 import nearishLogo from "@/assets/nearish-logo.png";
@@ -234,44 +227,11 @@ export default function Home() {
             className="mb-3"
           />
           {nearbyMarkets.length > 0 ? (
-            <Carousel
-              opts={{
-                align: "start",
-                loop: false,
-              }}
-              className="w-full"
-            >
-              <CarouselContent className="-ml-2 md:-ml-3">
-                {nearbyMarkets.map((market) => (
-                  <CarouselItem key={market.id} className="pl-2 md:pl-3 basis-[140px] md:basis-[180px] lg:basis-[200px]">
-                    <MarketCard
-                      name={market.name}
-                      image={market.image}
-                      distance={market.distanceMiles != null ? `${market.distanceMiles.toFixed(1)} mi` : undefined}
-                      isOpen={market.is_open}
-                      onClick={() => handleMarketClick(market)}
-                      className="w-full"
-                    />
-                  </CarouselItem>
-                ))}
-                {/* Show All Card */}
-                <CarouselItem className="pl-2 md:pl-3 basis-[140px] md:basis-[180px] lg:basis-[200px]">
-                  <button
-                    onClick={() => navigate("/map?filter=nearby")}
-                    className="w-full h-full min-h-[160px] md:min-h-[180px] rounded-xl border-2 border-dashed border-muted-foreground/30 bg-muted/30 hover:bg-muted/50 hover:border-primary/50 transition-all flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-primary"
-                  >
-                    <ChevronRight className="w-8 h-8" />
-                    <span className="text-sm font-medium">Show all</span>
-                  </button>
-                </CarouselItem>
-              </CarouselContent>
-              {!isMobile && (
-                <>
-                  <CarouselPrevious className="-left-4" />
-                  <CarouselNext className="-right-4" />
-                </>
-              )}
-            </Carousel>
+            <MarketCarousel
+              markets={nearbyMarkets}
+              onMarketClick={handleMarketClick}
+              showAllLink="/map?filter=nearby"
+            />
           ) : (
             <p className="text-muted-foreground text-sm">
               No markets found nearby. Try expanding your search radius in settings.
@@ -287,44 +247,11 @@ export default function Home() {
               action={{ label: "See all", onClick: () => navigate("/map?filter=further") }}
               className="mb-3"
             />
-            <Carousel
-              opts={{
-                align: "start",
-                loop: false,
-              }}
-              className="w-full"
-            >
-              <CarouselContent className="-ml-2 md:-ml-3">
-                {furtherOutMarkets.map((market) => (
-                  <CarouselItem key={market.id} className="pl-2 md:pl-3 basis-[140px] md:basis-[180px] lg:basis-[200px]">
-                    <MarketCard
-                      name={market.name}
-                      image={market.image}
-                      distance={market.distanceMiles != null ? `${market.distanceMiles.toFixed(1)} mi` : undefined}
-                      isOpen={market.is_open}
-                      onClick={() => handleMarketClick(market)}
-                      className="w-full"
-                    />
-                  </CarouselItem>
-                ))}
-                {/* Show All Card */}
-                <CarouselItem className="pl-2 md:pl-3 basis-[140px] md:basis-[180px] lg:basis-[200px]">
-                  <button
-                    onClick={() => navigate("/map?filter=further")}
-                    className="w-full h-full min-h-[160px] md:min-h-[180px] rounded-xl border-2 border-dashed border-muted-foreground/30 bg-muted/30 hover:bg-muted/50 hover:border-primary/50 transition-all flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-primary"
-                  >
-                    <ChevronRight className="w-8 h-8" />
-                    <span className="text-sm font-medium">Show all</span>
-                  </button>
-                </CarouselItem>
-              </CarouselContent>
-              {!isMobile && (
-                <>
-                  <CarouselPrevious className="-left-4" />
-                  <CarouselNext className="-right-4" />
-                </>
-              )}
-            </Carousel>
+            <MarketCarousel
+              markets={furtherOutMarkets}
+              onMarketClick={handleMarketClick}
+              showAllLink="/map?filter=further"
+            />
           </section>
         )}
 
