@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Locate, Search, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -10,24 +10,35 @@ import {
 } from "@/components/ui/popover";
 
 interface LocationControlProps {
-  onLocationChange: (lat: number, lng: number, source: "zip" | "gps") => void;
+  onLocationChange: (lat: number, lng: number, source: "zip" | "gps", zipCode?: string) => void;
   onUseGps: () => void;
+  onSaveZipCode?: (zipCode: string) => Promise<void>;
   isLoading?: boolean;
   currentSource?: "gps" | "zip" | "manual" | null;
+  savedZipCode?: string | null;
   className?: string;
 }
 
 export function LocationControl({
   onLocationChange,
   onUseGps,
+  onSaveZipCode,
   isLoading = false,
   currentSource,
+  savedZipCode,
   className,
 }: LocationControlProps) {
   const [zipCode, setZipCode] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pre-fill with saved zip code if available
+  useEffect(() => {
+    if (savedZipCode && !zipCode) {
+      setZipCode(savedZipCode);
+    }
+  }, [savedZipCode]);
 
   const handleZipSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,9 +68,15 @@ export function LocationControl({
 
       if (data && data.length > 0) {
         const { lat, lon } = data[0];
-        onLocationChange(parseFloat(lat), parseFloat(lon), "zip");
+        const trimmedZip = zipCode.trim();
+        onLocationChange(parseFloat(lat), parseFloat(lon), "zip", trimmedZip);
+        
+        // Save to profile if handler provided
+        if (onSaveZipCode) {
+          await onSaveZipCode(trimmedZip);
+        }
+        
         setIsOpen(false);
-        setZipCode("");
       } else {
         setError("Zip code not found");
       }
