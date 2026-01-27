@@ -9,6 +9,7 @@ import Finds from "./pages/Finds";
 import MapPage from "./pages/MapPage";
 import Forum from "./pages/Forum";
 import Profile from "./pages/Profile";
+import UserProfile from "./pages/UserProfile";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import MarketDetail from "./pages/MarketDetail";
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/map" element={<MapPage />} />
             <Route path="/forum" element={<Forum />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/u/:userId" element={<UserProfile />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/market/:marketId" element={<MarketDetail />} />

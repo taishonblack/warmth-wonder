@@ -15,9 +15,12 @@ import { FindDetailPopup } from "@/components/FindDetailPopup";
 import { ReviewForm } from "@/components/ReviewForm";
 import { ReviewCard } from "@/components/ReviewCard";
 import { VerificationHistory } from "@/components/VerificationHistory";
+import { MarketPhotoCarousel } from "@/components/MarketPhotoCarousel";
 import { cn } from "@/lib/utils";
 
 import market1 from "@/assets/market-1.jpg";
+import market2 from "@/assets/market-2.jpg";
+import market3 from "@/assets/market-3.jpg";
 
 interface Market {
   id: string;
@@ -55,6 +58,7 @@ export default function MarketDetail() {
   
   const [market, setMarket] = useState<Market | null>(null);
   const [finds, setFinds] = useState<Find[]>([]);
+  const [marketPhotos, setMarketPhotos] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFind, setSelectedFind] = useState<Find | null>(null);
   const [activeTab, setActiveTab] = useState<"finds" | "reviews" | "verifications">("finds");
@@ -140,6 +144,21 @@ export default function MarketDetail() {
           });
 
           setFinds(formattedFinds);
+          
+          // Collect photos for carousel (from finds + default market images)
+          const findPhotos = findsData
+            .flatMap(f => f.images || [])
+            .filter((img): img is string => !!img)
+            .slice(0, 6);
+          
+          setMarketPhotos(
+            findPhotos.length > 0 
+              ? findPhotos 
+              : [market1, market2, market3]
+          );
+        } else {
+          // No finds - use default market photos
+          setMarketPhotos([market1, market2, market3]);
         }
       } catch (error: any) {
         console.error("Error fetching market data:", error);
@@ -183,19 +202,12 @@ export default function MarketDetail() {
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
-      {/* Hero Section */}
-      <div className="relative aspect-[16/9] md:aspect-[21/9]">
-        <img
-          src={market1}
-          alt={market.name}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
-        
-        {/* Back button */}
+      {/* Hero Section with Photo Carousel */}
+      <div className="relative">
+        {/* Back button - absolute positioned over carousel */}
         <button
           onClick={() => navigate(-1)}
-          className="absolute top-4 left-4 p-2 rounded-full bg-background/80 backdrop-blur-sm text-foreground hover:bg-background transition-colors"
+          className="absolute top-4 left-4 z-20 p-2 rounded-full bg-background/80 backdrop-blur-sm text-foreground hover:bg-background transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -205,7 +217,7 @@ export default function MarketDetail() {
           onClick={toggleFavorite}
           disabled={favoriteLoading || !user}
           className={cn(
-            "absolute top-4 right-4 p-2 rounded-full backdrop-blur-sm transition-colors",
+            "absolute top-4 right-4 z-20 p-2 rounded-full backdrop-blur-sm transition-colors",
             isFavorite 
               ? "bg-primary text-primary-foreground" 
               : "bg-background/80 text-foreground hover:bg-background"
@@ -213,6 +225,11 @@ export default function MarketDetail() {
         >
           {isFavorite ? <BellOff className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
         </button>
+
+        <MarketPhotoCarousel 
+          photos={marketPhotos} 
+          marketName={market.name} 
+        />
       </div>
 
       {/* Market Info */}

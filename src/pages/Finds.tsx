@@ -1,4 +1,8 @@
-import { FindCard } from "@/components/FindCard";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { MasonryGrid } from "@/components/MasonryGrid";
+import { MasonryFindItem } from "@/components/MasonryFindItem";
+import { FindDetailPopup } from "@/components/FindDetailPopup";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useFinds } from "@/hooks/useFinds";
 import { Loader2 } from "lucide-react";
@@ -33,8 +37,8 @@ const mockFinds = [
       avatar: "https://i.pravatar.cc/150?img=3",
       userId: "mock-user-2",
     },
-    images: [find2, find6],
-    caption: "These sunflowers just made my whole day! The flower vendor at Grand Army is always so lovely. Got fresh herbs too!",
+    images: [find2],
+    caption: "These sunflowers just made my whole day! The flower vendor at Grand Army is always so lovely.",
     marketName: "Grand Army Plaza Market",
     thanksCount: 56,
     timestamp: "5 hours ago",
@@ -61,21 +65,79 @@ const mockFinds = [
       avatar: "https://i.pravatar.cc/150?img=8",
       userId: "mock-user-4",
     },
-    images: [find4, find5],
-    caption: "Peak strawberry season has arrived! These are so sweet you don't even need to add sugar. Also grabbed some homemade preserves.",
+    images: [find4],
+    caption: "Peak strawberry season has arrived! These are so sweet you don't even need to add sugar.",
     marketName: "Smorgasburg",
     thanksCount: 112,
     timestamp: "2 days ago",
+    userHasThanked: false,
+  },
+  {
+    id: "mock-5",
+    author: {
+      name: "Olivia Brown",
+      avatar: "https://i.pravatar.cc/150?img=9",
+      userId: "mock-user-5",
+    },
+    images: [find5],
+    caption: "Fresh herbs galore! Got rosemary, thyme, and lavender bundles.",
+    marketName: "Essex Market",
+    thanksCount: 45,
+    timestamp: "3 days ago",
+    userHasThanked: false,
+  },
+  {
+    id: "mock-6",
+    author: {
+      name: "James Park",
+      avatar: "https://i.pravatar.cc/150?img=11",
+      userId: "mock-user-6",
+    },
+    images: [find6],
+    caption: "Local honey with the comb! Supporting our neighborhood beekeepers.",
+    marketName: "Prospect Park Market",
+    thanksCount: 67,
+    timestamp: "4 days ago",
     userHasThanked: false,
   },
 ];
 
 export default function Finds() {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const { finds, loading, toggleThanks } = useFinds();
+  const [selectedFind, setSelectedFind] = useState<{
+    id: string;
+    image: string;
+    posterName: string;
+    posterAvatar: string;
+    caption: string;
+    marketName: string;
+    thanksCount: number;
+    timestamp: string;
+  } | null>(null);
 
   // Use real finds if available, otherwise show mock data
   const displayFinds = finds.length > 0 ? finds : mockFinds;
+
+  const handleFindClick = (find: typeof displayFinds[0]) => {
+    setSelectedFind({
+      id: find.id,
+      image: find.images[0] || find1,
+      posterName: find.author.name,
+      posterAvatar: find.author.avatar,
+      caption: find.caption,
+      marketName: find.marketName,
+      thanksCount: find.thanksCount,
+      timestamp: find.timestamp,
+    });
+  };
+
+  const handlePosterClick = (userId: string) => {
+    navigate(`/u/${userId}`);
+  };
+
+  const columns = isMobile ? 2 : 4;
 
   return (
     <div className="min-h-screen bg-background">
@@ -106,26 +168,26 @@ export default function Finds() {
         </div>
       )}
 
-      {/* Feed */}
+      {/* Masonry Feed */}
       {!loading && (
-        <div className={isMobile 
-          ? "px-4 py-4 space-y-4" 
-          : "grid grid-cols-4 gap-4"
-        }>
-          {displayFinds.map((find) => (
-            <FindCard
-              key={find.id}
-              id={find.id}
-              author={find.author}
-              images={find.images}
-              caption={find.caption}
-              marketName={find.marketName}
-              thanksCount={find.thanksCount}
-              timestamp={find.timestamp}
-              userHasThanked={find.userHasThanked}
-              onToggleThanks={toggleThanks}
-            />
-          ))}
+        <div className={isMobile ? "px-4 py-4" : ""}>
+          <MasonryGrid columns={columns} gap={12}>
+            {displayFinds.map((find) => (
+              <MasonryFindItem
+                key={find.id}
+                id={find.id}
+                image={find.images[0] || find1}
+                posterName={find.author.name}
+                posterAvatar={find.author.avatar}
+                posterUserId={find.author.userId}
+                caption={find.caption}
+                marketName={find.marketName}
+                thanksCount={find.thanksCount}
+                onClick={() => handleFindClick(find)}
+                onPosterClick={() => handlePosterClick(find.author.userId)}
+              />
+            ))}
+          </MasonryGrid>
         </div>
       )}
 
@@ -135,6 +197,13 @@ export default function Finds() {
           <p className="text-sm">Showing sample finds. Be the first to share!</p>
         </div>
       )}
+
+      {/* Find Detail Popup */}
+      <FindDetailPopup
+        isOpen={!!selectedFind}
+        onClose={() => setSelectedFind(null)}
+        find={selectedFind}
+      />
     </div>
   );
 }
