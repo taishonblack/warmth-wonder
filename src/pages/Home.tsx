@@ -236,7 +236,7 @@ export default function Home() {
                   key={market.id}
                   name={market.name}
                   image={market.image}
-                  distance={`${market.distanceMiles.toFixed(1)} mi`}
+                  distance={market.distanceMiles != null ? `${market.distanceMiles.toFixed(1)} mi` : undefined}
                   isOpen={market.is_open}
                   onClick={() => handleMarketClick(market)}
                   className={!isMobile ? "w-full" : undefined}
@@ -267,7 +267,7 @@ export default function Home() {
                   key={market.id}
                   name={market.name}
                   image={market.image}
-                  distance={`${market.distanceMiles.toFixed(1)} mi`}
+                  distance={market.distanceMiles != null ? `${market.distanceMiles.toFixed(1)} mi` : undefined}
                   isOpen={market.is_open}
                   onClick={() => handleMarketClick(market)}
                   className={!isMobile ? "w-full" : undefined}
