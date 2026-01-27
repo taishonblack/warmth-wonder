@@ -2,35 +2,57 @@ import { useState } from "react";
 import { MapBottomSheet } from "@/components/MapBottomSheet";
 import { MapLegend } from "@/components/MapLegend";
 import { MapView } from "@/components/MapView";
+import { MapSearchBar } from "@/components/MapSearchBar";
 import { useGeolocation } from "@/hooks/useGeolocation";
-
-const mockMarkets = [
-  { id: "1", name: "Union Square Greenmarket", distance: "0.3 mi", isOpen: true, type: "farmers", lat: 40.7359, lng: -73.9911 },
-  { id: "2", name: "Grand Army Plaza Market", distance: "1.2 mi", isOpen: true, type: "farmers", lat: 40.6743, lng: -73.9712 },
-  { id: "3", name: "Prospect Park Market", distance: "2.1 mi", isOpen: false, type: "farmers", lat: 40.6602, lng: -73.9690 },
-  { id: "4", name: "Chelsea Market", distance: "0.8 mi", isOpen: true, type: "artisan", lat: 40.7424, lng: -74.0060 },
-  { id: "5", name: "Smorgasburg", distance: "1.5 mi", isOpen: true, type: "flea", lat: 40.7215, lng: -73.9577 },
-  { id: "6", name: "Essex Market", distance: "0.9 mi", isOpen: true, type: "artisan", lat: 40.7187, lng: -73.9872 },
-];
+import { useMarkets } from "@/hooks/useMarkets";
+import { Loader2 } from "lucide-react";
 
 export default function MapPage() {
   const [selectedMarket, setSelectedMarket] = useState<string | null>(null);
+  const [showDirections, setShowDirections] = useState(false);
   const { latitude, longitude, loading: geoLoading } = useGeolocation();
+  const { data: markets = [], isLoading: marketsLoading } = useMarkets();
 
   const userLocation = latitude && longitude ? { lat: latitude, lng: longitude } : null;
 
   const handleMarketSelect = (id: string) => {
     setSelectedMarket(id);
+    setShowDirections(false);
   };
+
+  const handleGetDirections = (marketId: string) => {
+    setSelectedMarket(marketId);
+    setShowDirections(true);
+  };
+
+  if (marketsLoading) {
+    return (
+      <div className="h-screen bg-muted flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading markets...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-muted relative overflow-hidden">
+      {/* Search Bar */}
+      <div className="absolute top-4 left-4 right-4 z-20">
+        <MapSearchBar
+          markets={markets}
+          onMarketSelect={handleMarketSelect}
+        />
+      </div>
+
       {/* Mapbox Map */}
       <MapView
-        markets={mockMarkets}
+        markets={markets}
         selectedMarket={selectedMarket}
         onMarketSelect={handleMarketSelect}
         userLocation={userLocation}
+        showDirections={showDirections}
       />
 
       {/* Legend */}
@@ -38,8 +60,11 @@ export default function MapPage() {
 
       {/* Bottom Sheet */}
       <MapBottomSheet
-        markets={mockMarkets}
+        markets={markets}
+        selectedMarket={selectedMarket}
         onMarketSelect={handleMarketSelect}
+        userLocation={userLocation}
+        onGetDirections={handleGetDirections}
       />
     </div>
   );

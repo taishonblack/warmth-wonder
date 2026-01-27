@@ -71,6 +71,63 @@ export type Database = {
         }
         Relationships: []
       }
+      markets: {
+        Row: {
+          address: string
+          city: string
+          created_at: string
+          description: string | null
+          hours: string | null
+          id: string
+          is_open: boolean
+          lat: number
+          lng: number
+          name: string
+          phone: string | null
+          state: string
+          type: string
+          updated_at: string
+          website: string | null
+          zip_code: string | null
+        }
+        Insert: {
+          address: string
+          city: string
+          created_at?: string
+          description?: string | null
+          hours?: string | null
+          id?: string
+          is_open?: boolean
+          lat: number
+          lng: number
+          name: string
+          phone?: string | null
+          state?: string
+          type?: string
+          updated_at?: string
+          website?: string | null
+          zip_code?: string | null
+        }
+        Update: {
+          address?: string
+          city?: string
+          created_at?: string
+          description?: string | null
+          hours?: string | null
+          id?: string
+          is_open?: boolean
+          lat?: number
+          lng?: number
+          name?: string
+          phone?: string | null
+          state?: string
+          type?: string
+          updated_at?: string
+          website?: string | null
+          zip_code?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           actor_id: string | null
