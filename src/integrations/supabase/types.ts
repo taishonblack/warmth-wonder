@@ -71,58 +71,114 @@ export type Database = {
         }
         Relationships: []
       }
+      market_verifications: {
+        Row: {
+          created_at: string
+          field_name: string
+          field_value: string
+          id: string
+          market_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          field_name: string
+          field_value: string
+          id?: string
+          market_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          field_name?: string
+          field_value?: string
+          id?: string
+          market_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_verifications_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       markets: {
         Row: {
           address: string
           city: string
+          claimed_at: string | null
+          claimed_by: string | null
           created_at: string
           description: string | null
+          gluten_free: boolean | null
           hours: string | null
           id: string
           is_open: boolean
           lat: number
           lng: number
           name: string
+          organic: boolean | null
+          osm_source_id: string | null
           phone: string | null
           state: string
           type: string
           updated_at: string
+          vegan_friendly: boolean | null
+          verification_count: number | null
           website: string | null
           zip_code: string | null
         }
         Insert: {
           address: string
           city: string
+          claimed_at?: string | null
+          claimed_by?: string | null
           created_at?: string
           description?: string | null
+          gluten_free?: boolean | null
           hours?: string | null
           id?: string
           is_open?: boolean
           lat: number
           lng: number
           name: string
+          organic?: boolean | null
+          osm_source_id?: string | null
           phone?: string | null
           state?: string
           type?: string
           updated_at?: string
+          vegan_friendly?: boolean | null
+          verification_count?: number | null
           website?: string | null
           zip_code?: string | null
         }
         Update: {
           address?: string
           city?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
           created_at?: string
           description?: string | null
+          gluten_free?: boolean | null
           hours?: string | null
           id?: string
           is_open?: boolean
           lat?: number
           lng?: number
           name?: string
+          organic?: boolean | null
+          osm_source_id?: string | null
           phone?: string | null
           state?: string
           type?: string
           updated_at?: string
+          vegan_friendly?: boolean | null
+          verification_count?: number | null
           website?: string | null
           zip_code?: string | null
         }

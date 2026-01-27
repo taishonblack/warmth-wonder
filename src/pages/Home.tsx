@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { MapPin, Loader2 } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
 import { MarketCard } from "@/components/MarketCard";
@@ -6,16 +6,17 @@ import { FindGridItem } from "@/components/FindGridItem";
 import { SectionHeader } from "@/components/SectionHeader";
 import { FindDetailPopup } from "@/components/FindDetailPopup";
 import { MarketDetailPopup } from "@/components/MarketDetailPopup";
-import { DesktopHeader } from "@/components/layout/DesktopHeader";
+import { DietFilterBar, DietFilters } from "@/components/DietFilterBar";
+import { ClaimMarketModal } from "@/components/ClaimMarketModal";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useProximitySettings } from "@/hooks/useProximitySettings";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCombinedMarkets, calculateDistance, Market } from "@/hooks/useMarkets";
+import { useFinds } from "@/hooks/useFinds";
 
 // Import images
 import nearishLogo from "@/assets/nearish-logo.png";
 import market1 from "@/assets/market-1.jpg";
-import market2 from "@/assets/market-2.jpg";
-import market3 from "@/assets/market-3.jpg";
 import find1 from "@/assets/find-1.jpg";
 import find2 from "@/assets/find-2.jpg";
 import find3 from "@/assets/find-3.jpg";
@@ -23,21 +24,10 @@ import find4 from "@/assets/find-4.jpg";
 import find5 from "@/assets/find-5.jpg";
 import find6 from "@/assets/find-6.jpg";
 
-const nearbyMarkets = [
-  { id: "1", name: "Union Square Greenmarket", image: market1, distance: "0.3 mi", isOpen: true, address: "E 17th St & Union Square W, New York, NY", hours: "Mon, Wed, Fri, Sat: 8am - 6pm", description: "NYC's largest farmers market featuring over 140 regional farmers and fishermen." },
-  { id: "2", name: "Grand Army Plaza Market", image: market2, distance: "1.2 mi", isOpen: true, address: "Grand Army Plaza, Brooklyn, NY", hours: "Saturdays: 8am - 4pm", description: "Brooklyn's premier greenmarket with organic produce and artisan goods." },
-  { id: "3", name: "Prospect Park Market", image: market3, distance: "2.1 mi", isOpen: false, address: "Prospect Park West, Brooklyn, NY", hours: "Sundays: 9am - 4pm", description: "Family-friendly market with local farms, live music, and prepared foods." },
-];
-
-const furtherOutMarkets = [
-  { id: "4", name: "Westchester Farm Market", image: market2, distance: "22 mi", isOpen: true, address: "123 Farm Road, Westchester, NY", hours: "Sat & Sun: 9am - 5pm", description: "Hudson Valley farms bringing fresh seasonal produce and dairy." },
-  { id: "5", name: "Hudson Valley Harvest", image: market1, distance: "25 mi", isOpen: true, address: "456 Valley Lane, Hudson, NY", hours: "Saturdays: 8am - 3pm", description: "Specializing in heirloom vegetables, pasture-raised meats, and artisan cheeses." },
-  { id: "6", name: "Long Island Organic Market", image: market3, distance: "28 mi", isOpen: true, address: "789 Organic Way, Long Island, NY", hours: "Sundays: 10am - 4pm", description: "100% certified organic produce from Long Island family farms." },
-];
-
-const freshFinds = [
+// Fallback mock finds for empty states
+const mockFinds = [
   { 
-    id: "1", 
+    id: "mock-1", 
     image: find1, 
     posterName: "Sarah Chen",
     posterAvatar: "https://i.pravatar.cc/150?img=1",
@@ -47,7 +37,7 @@ const freshFinds = [
     timestamp: "2 hours ago"
   },
   { 
-    id: "2", 
+    id: "mock-2", 
     image: find2, 
     posterName: "Marcus Rivera",
     posterAvatar: "https://i.pravatar.cc/150?img=3",
@@ -57,7 +47,7 @@ const freshFinds = [
     timestamp: "3 hours ago"
   },
   { 
-    id: "3", 
+    id: "mock-3", 
     image: find3, 
     posterName: "Emily Watson",
     posterAvatar: "https://i.pravatar.cc/150?img=5",
@@ -67,7 +57,7 @@ const freshFinds = [
     timestamp: "4 hours ago"
   },
   { 
-    id: "4", 
+    id: "mock-4", 
     image: find4, 
     posterName: "James Kim",
     posterAvatar: "https://i.pravatar.cc/150?img=8",
@@ -77,7 +67,7 @@ const freshFinds = [
     timestamp: "5 hours ago"
   },
   { 
-    id: "5", 
+    id: "mock-5", 
     image: find5, 
     posterName: "Olivia Brown",
     posterAvatar: "https://i.pravatar.cc/150?img=9",
@@ -87,7 +77,7 @@ const freshFinds = [
     timestamp: "6 hours ago"
   },
   { 
-    id: "6", 
+    id: "mock-6", 
     image: find6, 
     posterName: "David Park",
     posterAvatar: "https://i.pravatar.cc/150?img=11",
@@ -98,12 +88,80 @@ const freshFinds = [
   },
 ];
 
+interface HomeMarket extends Market {
+  image: string;
+}
+
 export default function Home() {
-  const [selectedFind, setSelectedFind] = useState<typeof freshFinds[0] | null>(null);
-  const [selectedMarket, setSelectedMarket] = useState<typeof nearbyMarkets[0] | null>(null);
+  const [selectedFind, setSelectedFind] = useState<typeof mockFinds[0] | null>(null);
+  const [selectedMarket, setSelectedMarket] = useState<HomeMarket | null>(null);
+  const [claimingMarket, setClaimingMarket] = useState<Market | null>(null);
+  const [dietFilters, setDietFilters] = useState<DietFilters>({
+    organic: false,
+    veganFriendly: false,
+    glutenFree: false,
+  });
+  
   const { latitude, longitude, loading: geoLoading, error: geoError } = useGeolocation();
   const { radius } = useProximitySettings();
   const isMobile = useIsMobile();
+  
+  // Fetch real market data
+  const { data: markets = [], isLoading: marketsLoading } = useCombinedMarkets(
+    latitude,
+    longitude,
+    undefined,
+    radius * 1609, // Convert miles to meters
+    dietFilters
+  );
+  
+  // Fetch real finds
+  const { finds } = useFinds();
+  
+  // Split markets into nearby and further out
+  const { nearbyMarkets, furtherOutMarkets } = useMemo(() => {
+    if (!latitude || !longitude) {
+      return { nearbyMarkets: markets.slice(0, 6), furtherOutMarkets: [] };
+    }
+    
+    const marketsWithDistance = markets.map((m) => ({
+      ...m,
+      distanceMiles: calculateDistance(latitude, longitude, m.lat, m.lng),
+      image: market1, // Default image for now
+    }));
+    
+    const sorted = marketsWithDistance.sort((a, b) => a.distanceMiles - b.distanceMiles);
+    
+    return {
+      nearbyMarkets: sorted.filter((m) => m.distanceMiles <= 5).slice(0, 6),
+      furtherOutMarkets: sorted.filter((m) => m.distanceMiles > 5 && m.distanceMiles <= radius).slice(0, 6),
+    };
+  }, [markets, latitude, longitude, radius]);
+  
+  // Use real finds or fallback to mocks
+  const displayFinds = finds.length > 0 
+    ? finds.slice(0, 6).map((f) => ({
+        id: f.id,
+        image: f.images[0] || find1,
+        posterName: f.author.name,
+        posterAvatar: f.author.avatar,
+        caption: f.caption,
+        marketName: f.marketName,
+        thanksCount: f.thanksCount,
+        timestamp: f.timestamp,
+      }))
+    : mockFinds;
+
+  const handleMarketClick = (market: HomeMarket) => {
+    setSelectedMarket(market);
+  };
+
+  const handleClaimMarket = () => {
+    if (selectedMarket) {
+      setClaimingMarket(selectedMarket);
+      setSelectedMarket(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -141,6 +199,19 @@ export default function Home() {
 
       {/* Content */}
       <div className={isMobile ? "px-4 py-4 space-y-6" : "space-y-6"}>
+        {/* Diet Filters */}
+        <section className={isMobile ? "-mx-4 px-4" : ""}>
+          <DietFilterBar filters={dietFilters} onChange={setDietFilters} />
+        </section>
+
+        {/* Loading State */}
+        {marketsLoading && markets.length === 0 && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            <span className="ml-2 text-muted-foreground">Finding markets near you...</span>
+          </div>
+        )}
+
         {/* Near You Section */}
         <section>
           <SectionHeader
@@ -152,44 +223,52 @@ export default function Home() {
             ? "flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4"
             : "grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4"
           }>
-            {nearbyMarkets.map((market) => (
-              <MarketCard
-                key={market.id}
-                name={market.name}
-                image={market.image}
-                distance={market.distance}
-                isOpen={market.isOpen}
-                onClick={() => setSelectedMarket(market)}
-                className={!isMobile ? "w-full" : undefined}
-              />
-            ))}
+            {nearbyMarkets.length > 0 ? (
+              nearbyMarkets.map((market) => (
+                <MarketCard
+                  key={market.id}
+                  name={market.name}
+                  image={market.image}
+                  distance={`${market.distanceMiles.toFixed(1)} mi`}
+                  isOpen={market.is_open}
+                  onClick={() => handleMarketClick(market)}
+                  className={!isMobile ? "w-full" : undefined}
+                />
+              ))
+            ) : (
+              <p className="text-muted-foreground text-sm col-span-full">
+                No markets found nearby. Try expanding your search radius in settings.
+              </p>
+            )}
           </div>
         </section>
 
         {/* Further Out Section */}
-        <section>
-          <SectionHeader
-            title={`Further out (${radius}+ mi)`}
-            action={{ label: "See all", onClick: () => {} }}
-            className="mb-3"
-          />
-          <div className={isMobile 
-            ? "flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4"
-            : "grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4"
-          }>
-            {furtherOutMarkets.map((market) => (
-              <MarketCard
-                key={market.id}
-                name={market.name}
-                image={market.image}
-                distance={market.distance}
-                isOpen={market.isOpen}
-                onClick={() => setSelectedMarket(market)}
-                className={!isMobile ? "w-full" : undefined}
-              />
-            ))}
-          </div>
-        </section>
+        {furtherOutMarkets.length > 0 && (
+          <section>
+            <SectionHeader
+              title={`Further out (5+ mi)`}
+              action={{ label: "See all", onClick: () => {} }}
+              className="mb-3"
+            />
+            <div className={isMobile 
+              ? "flex gap-3 overflow-x-auto scrollbar-hide -mx-4 px-4"
+              : "grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+            }>
+              {furtherOutMarkets.map((market) => (
+                <MarketCard
+                  key={market.id}
+                  name={market.name}
+                  image={market.image}
+                  distance={`${market.distanceMiles.toFixed(1)} mi`}
+                  isOpen={market.is_open}
+                  onClick={() => handleMarketClick(market)}
+                  className={!isMobile ? "w-full" : undefined}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Fresh Finds Grid */}
         <section>
@@ -202,7 +281,7 @@ export default function Home() {
             ? "grid grid-cols-2 gap-3"
             : "grid grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
           }>
-            {freshFinds.map((find) => (
+            {displayFinds.map((find) => (
               <FindGridItem
                 key={find.id}
                 image={find.image}
@@ -226,11 +305,106 @@ export default function Home() {
         find={selectedFind}
       />
 
-      {/* Market Detail Popup */}
-      <MarketDetailPopup
-        isOpen={!!selectedMarket}
-        onClose={() => setSelectedMarket(null)}
-        market={selectedMarket}
+      {/* Market Detail Popup - Enhanced with claim option */}
+      {selectedMarket && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
+            onClick={() => setSelectedMarket(null)}
+          />
+          <div className="relative w-full max-w-lg bg-card rounded-t-3xl animate-slide-up overflow-hidden max-h-[85vh]">
+            <button
+              onClick={() => setSelectedMarket(null)}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
+            >
+              <span className="sr-only">Close</span>
+              ✕
+            </button>
+
+            <div className="relative aspect-video">
+              <img
+                src={selectedMarket.image}
+                alt={selectedMarket.name}
+                className="w-full h-full object-cover"
+              />
+              {selectedMarket.source === "osm" && (
+                <span className="absolute top-4 left-4 px-3 py-1 text-xs font-medium rounded-full bg-secondary text-secondary-foreground">
+                  Community Verified
+                </span>
+              )}
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">
+                  {selectedMarket.name}
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+                  <MapPin className="w-4 h-4" />
+                  {selectedMarket.address}, {selectedMarket.city}
+                </p>
+              </div>
+
+              {/* Diet badges */}
+              <div className="flex flex-wrap gap-2">
+                {selectedMarket.organic && (
+                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/20 text-primary">
+                    🌿 Organic
+                  </span>
+                )}
+                {selectedMarket.vegan_friendly && (
+                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/20 text-primary">
+                    💚 Vegan-Friendly
+                  </span>
+                )}
+                {selectedMarket.gluten_free && (
+                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/20 text-primary">
+                    🌾 Gluten-Free
+                  </span>
+                )}
+              </div>
+
+              {selectedMarket.hours && (
+                <p className="text-sm text-muted-foreground">
+                  🕐 {selectedMarket.hours}
+                </p>
+              )}
+
+              {selectedMarket.description && (
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {selectedMarket.description}
+                </p>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                {selectedMarket.source === "osm" && !selectedMarket.claimed_by && (
+                  <button
+                    onClick={handleClaimMarket}
+                    className="flex-1 py-3 bg-secondary text-secondary-foreground rounded-xl font-medium hover:bg-secondary/90 transition-colors"
+                  >
+                    Claim & Verify
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedMarket(null)}
+                  className="flex-1 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
+                >
+                  View on Map
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Claim Market Modal */}
+      <ClaimMarketModal
+        isOpen={!!claimingMarket}
+        onClose={() => setClaimingMarket(null)}
+        market={claimingMarket}
+        onClaimed={() => {
+          setClaimingMarket(null);
+        }}
       />
     </div>
   );

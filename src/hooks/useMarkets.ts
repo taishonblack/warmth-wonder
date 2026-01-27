@@ -19,10 +19,25 @@ export interface Market {
   phone: string | null;
   created_at: string;
   updated_at: string;
+  // Diet filters
+  organic?: boolean;
+  vegan_friendly?: boolean;
+  gluten_free?: boolean;
+  // Claim info
+  claimed_by?: string | null;
+  claimed_at?: string | null;
+  osm_source_id?: string | null;
+  verification_count?: number;
   // Optional fields for OSM data
   source?: "db" | "osm";
   confidence?: number;
   category?: string;
+}
+
+export interface DietFilters {
+  organic: boolean;
+  veganFriendly: boolean;
+  glutenFree: boolean;
 }
 
 // OSM market type from edge function
@@ -57,9 +72,9 @@ interface NearbyMarketsResponse {
 }
 
 // Fetch markets from database
-export function useMarkets(searchQuery?: string) {
+export function useMarkets(searchQuery?: string, dietFilters?: DietFilters) {
   return useQuery({
-    queryKey: ["markets", searchQuery],
+    queryKey: ["markets", searchQuery, dietFilters],
     queryFn: async () => {
       let query = supabase.from("markets").select("*");
 
@@ -67,6 +82,17 @@ export function useMarkets(searchQuery?: string) {
         query = query.or(
           `name.ilike.%${searchQuery}%,address.ilike.%${searchQuery}%,city.ilike.%${searchQuery}%`
         );
+      }
+
+      // Apply diet filters
+      if (dietFilters?.organic) {
+        query = query.eq("organic", true);
+      }
+      if (dietFilters?.veganFriendly) {
+        query = query.eq("vegan_friendly", true);
+      }
+      if (dietFilters?.glutenFree) {
+        query = query.eq("gluten_free", true);
       }
 
       const { data, error } = await query.order("name");
@@ -123,6 +149,10 @@ export function useNearbyMarkets(lat: number | null, lng: number | null, radius:
         source: "osm",
         confidence: m.confidence,
         category: m.category,
+        // Check OSM tags for diet info
+        organic: m.tags?.organic === "yes" || m.tags?.organic === "only" || m.category === "organic",
+        vegan_friendly: m.tags?.["diet:vegan"] === "yes" || m.tags?.["diet:vegetarian"] === "yes",
+        gluten_free: m.tags?.["diet:gluten_free"] === "yes",
       }));
     },
     enabled: lat !== null && lng !== null,
@@ -153,16 +183,28 @@ export function useCombinedMarkets(
   lat: number | null,
   lng: number | null,
   searchQuery?: string,
-  radius: number = 8000
+  radius: number = 8000,
+  dietFilters?: DietFilters
 ) {
-  const dbMarkets = useMarkets(searchQuery);
+  const dbMarkets = useMarkets(searchQuery, dietFilters);
   const osmMarkets = useNearbyMarkets(lat, lng, radius);
 
   const isLoading = dbMarkets.isLoading || osmMarkets.isLoading;
   const error = dbMarkets.error || osmMarkets.error;
 
+  // Apply diet filters to OSM markets client-side
+  let filteredOsmMarkets = osmMarkets.data || [];
+  if (dietFilters) {
+    filteredOsmMarkets = filteredOsmMarkets.filter((m) => {
+      if (dietFilters.organic && !m.organic) return false;
+      if (dietFilters.veganFriendly && !m.vegan_friendly) return false;
+      if (dietFilters.glutenFree && !m.gluten_free) return false;
+      return true;
+    });
+  }
+
   // Merge and deduplicate by proximity
-  const markets = mergeMarkets(dbMarkets.data || [], osmMarkets.data || []);
+  const markets = mergeMarkets(dbMarkets.data || [], filteredOsmMarkets);
 
   return {
     data: markets,

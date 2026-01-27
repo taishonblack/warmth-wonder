@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronUp, ChevronDown, MapPin, Clock, Navigation, Filter } from "lucide-react";
+import { ChevronUp, ChevronDown, MapPin, Clock, Navigation, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Market, calculateDistance } from "@/hooks/useMarkets";
 
@@ -9,6 +9,7 @@ interface MapBottomSheetProps {
   onMarketSelect: (id: string) => void;
   userLocation?: { lat: number; lng: number } | null;
   onGetDirections?: (marketId: string) => void;
+  onClaimMarket?: (market: Market) => void;
 }
 
 export function MapBottomSheet({ 
@@ -16,7 +17,8 @@ export function MapBottomSheet({
   selectedMarket,
   onMarketSelect,
   userLocation,
-  onGetDirections 
+  onGetDirections,
+  onClaimMarket,
 }: MapBottomSheetProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string>("all");
@@ -102,16 +104,47 @@ export function MapBottomSheet({
                 </span>
               </div>
             </div>
-            {onGetDirections && (
-              <button
-                onClick={() => onGetDirections(selectedMarketData.id)}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-medium"
-              >
-                <Navigation className="w-4 h-4" />
-                Directions
-              </button>
-            )}
+            <div className="flex flex-col gap-2">
+              {onGetDirections && (
+                <button
+                  onClick={() => onGetDirections(selectedMarketData.id)}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-medium"
+                >
+                  <Navigation className="w-4 h-4" />
+                  Directions
+                </button>
+              )}
+              {onClaimMarket && selectedMarketData.source === "osm" && !selectedMarketData.claimed_by && (
+                <button
+                  onClick={() => onClaimMarket(selectedMarketData)}
+                  className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-full text-sm font-medium"
+                >
+                  <Shield className="w-4 h-4" />
+                  Verify
+                </button>
+              )}
+            </div>
           </div>
+          {/* Diet badges */}
+          {(selectedMarketData.organic || selectedMarketData.vegan_friendly || selectedMarketData.gluten_free) && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {selectedMarketData.organic && (
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-primary/20 text-primary">
+                  🌿 Organic
+                </span>
+              )}
+              {selectedMarketData.vegan_friendly && (
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-primary/20 text-primary">
+                  💚 Vegan
+                </span>
+              )}
+              {selectedMarketData.gluten_free && (
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-primary/20 text-primary">
+                  🌾 GF
+                </span>
+              )}
+            </div>
+          )}
           {selectedMarketData.description && (
             <p className="text-sm text-muted-foreground mt-3">
               {selectedMarketData.description}
