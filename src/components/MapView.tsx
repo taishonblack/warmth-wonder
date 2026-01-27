@@ -15,8 +15,9 @@ interface MapViewProps {
 
 const pinColors: Record<string, string> = {
   farmers: "#7C9A5E",   // primary green
-  flea: "#D4A574",      // secondary tan
+  flea: "#D4A574",      // secondary tan  
   artisan: "#C4A77D",   // clay
+  specialty: "#B8860B", // accent gold
 };
 
 export function MapView({ 
