@@ -34,11 +34,7 @@ export function MapView({
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
-    const token = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN;
-    if (!token) {
-      console.error("Mapbox token not found");
-      return;
-    }
+    const token = "pk.eyJ1IjoidGFpc2hvbmIiLCJhIjoiY21rdnRkMTFiMDk1ZTNjcHc0YzRoc3I2aiJ9.9D_Nrd1vBV64gLPWKg_Q8g";
 
     mapboxgl.accessToken = token;
 
@@ -98,7 +94,7 @@ export function MapView({
   ) => {
     if (!map.current || !mapLoaded) return;
 
-    const token = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN;
+    const token = "pk.eyJ1IjoidGFpc2hvbmIiLCJhIjoiY21rdnRkMTFiMDk1ZTNjcHc0YzRoc3I2aiJ9.9D_Nrd1vBV64gLPWKg_Q8g";
     const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${start[0]},${start[1]};${end[0]},${end[1]}?geometries=geojson&access_token=${token}`;
 
     try {
