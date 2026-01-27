@@ -188,10 +188,41 @@ export function useFinds(): UseFindsReturn {
         await supabase.from("notifications").insert(notifications);
       }
 
+      // Get user profile for push notification
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      // Trigger push notifications for users who favorited this market
+      const { data: marketData } = await supabase
+        .from("markets")
+        .select("id")
+        .eq("name", data.marketName)
+        .maybeSingle();
+
+      if (marketData) {
+        // Call push notification edge function
+        supabase.functions.invoke("send-push-notification", {
+          body: {
+            marketId: marketData.id,
+            marketName: data.marketName,
+            findId: newFind.id,
+            findCaption: data.caption,
+            posterName: profile?.display_name || "Someone",
+          },
+        }).catch(err => console.error("Push notification error:", err));
+
+      }
+
       toast({
         title: "Find shared!",
         description: "Your find has been posted.",
       });
+
+      await fetchFinds();
+      return true;
 
       await fetchFinds();
       return true;

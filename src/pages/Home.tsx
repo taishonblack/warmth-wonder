@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { MapPin, Loader2 } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
 import { MarketCard } from "@/components/MarketCard";
@@ -93,6 +94,7 @@ interface HomeMarket extends Market {
 }
 
 export default function Home() {
+  const navigate = useNavigate();
   const [selectedFind, setSelectedFind] = useState<typeof mockFinds[0] | null>(null);
   const [selectedMarket, setSelectedMarket] = useState<HomeMarket | null>(null);
   const [claimingMarket, setClaimingMarket] = useState<Market | null>(null);
@@ -153,7 +155,12 @@ export default function Home() {
     : mockFinds;
 
   const handleMarketClick = (market: HomeMarket) => {
-    setSelectedMarket(market);
+    // Navigate to market detail page if it's a DB market, otherwise show popup
+    if (market.source === "db") {
+      navigate(`/market/${market.id}`);
+    } else {
+      setSelectedMarket(market);
+    }
   };
 
   const handleClaimMarket = () => {
@@ -386,10 +393,17 @@ export default function Home() {
                   </button>
                 )}
                 <button
-                  onClick={() => setSelectedMarket(null)}
+                  onClick={() => {
+                    if (selectedMarket.source === "db") {
+                      navigate(`/market/${selectedMarket.id}`);
+                    } else {
+                      navigate(`/map?market=${selectedMarket.id}`);
+                    }
+                    setSelectedMarket(null);
+                  }}
                   className="flex-1 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
                 >
-                  View on Map
+                  {selectedMarket.source === "db" ? "View Details" : "View on Map"}
                 </button>
               </div>
             </div>
