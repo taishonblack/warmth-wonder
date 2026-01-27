@@ -28,6 +28,9 @@ export interface Market {
   claimed_at?: string | null;
   osm_source_id?: string | null;
   verification_count?: number;
+  // Photo fields
+  photo_url?: string | null;
+  photo_reference?: string | null;
   // Optional fields for OSM data
   source?: "db" | "osm";
   confidence?: number;

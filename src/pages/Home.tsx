@@ -15,6 +15,7 @@ import { useProximitySettings } from "@/hooks/useProximitySettings";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCombinedMarkets, calculateDistance, Market } from "@/hooks/useMarkets";
 import { useFinds } from "@/hooks/useFinds";
+import { useMarketPhotos } from "@/hooks/useMarketPhoto";
 
 // Import images
 import nearishLogo from "@/assets/nearish-logo.png";
@@ -121,16 +122,34 @@ export default function Home() {
   // Fetch real finds
   const { finds } = useFinds();
   
-  // Split markets into nearby and further out
+  // Fetch real photos for markets
+  const photoMap = useMarketPhotos(
+    markets.map((m) => ({
+      id: m.id,
+      name: m.name,
+      address: m.address,
+      lat: m.lat,
+      lng: m.lng,
+      photo_url: m.photo_url,
+    }))
+  );
+  
+  // Split markets into nearby and further out with photos
   const { nearbyMarkets, furtherOutMarkets } = useMemo(() => {
     if (!latitude || !longitude) {
-      return { nearbyMarkets: markets.slice(0, 6), furtherOutMarkets: [] };
+      return { 
+        nearbyMarkets: markets.slice(0, 6).map((m) => ({
+          ...m,
+          image: photoMap.get(m.id) || m.photo_url || market1,
+        })), 
+        furtherOutMarkets: [] 
+      };
     }
     
     const marketsWithDistance = markets.map((m) => ({
       ...m,
       distanceMiles: calculateDistance(latitude, longitude, m.lat, m.lng),
-      image: market1, // Default image for now
+      image: photoMap.get(m.id) || m.photo_url || market1,
     }));
     
     const sorted = marketsWithDistance.sort((a, b) => a.distanceMiles - b.distanceMiles);
@@ -139,7 +158,7 @@ export default function Home() {
       nearbyMarkets: sorted.filter((m) => m.distanceMiles <= 5).slice(0, 15),
       furtherOutMarkets: sorted.filter((m) => m.distanceMiles > 5 && m.distanceMiles <= radius).slice(0, 15),
     };
-  }, [markets, latitude, longitude, radius]);
+  }, [markets, latitude, longitude, radius, photoMap]);
   
   // Use real finds or fallback to mocks
   const displayFinds = finds.length > 0 
