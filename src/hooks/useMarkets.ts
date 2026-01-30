@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 // Database market type
@@ -187,52 +187,42 @@ export function useNearbyMarkets(lat: number | null, lng: number | null, radius:
   });
 }
 
-// Fetch nearby markets from Google Places via edge function (fallback)
-export function useNearbyGooglePlaces(lat: number | null, lng: number | null, radius: number = DEFAULT_RADIUS_METERS, enabled: boolean = false) {
-  return useQuery({
-    queryKey: ["nearby-google-places", lat?.toFixed(2), lng?.toFixed(2), radius],
-    queryFn: async (): Promise<Market[]> => {
-      if (!lat || !lng) return [];
+// Helper function to fetch Google Places markets (not a hook)
+async function fetchGooglePlacesMarkets(lat: number, lng: number, radius: number): Promise<Market[]> {
+  const { data, error } = await supabase.functions.invoke<GooglePlacesResponse>(
+    "nearby-google-places",
+    {
+      body: { lat, lng, radius },
+    }
+  );
 
-      const { data, error } = await supabase.functions.invoke<GooglePlacesResponse>(
-        "nearby-google-places",
-        {
-          body: { lat, lng, radius },
-        }
-      );
+  if (error) {
+    console.error("Error fetching Google Places markets:", error);
+    return [];
+  }
 
-      if (error) {
-        console.error("Error fetching Google Places markets:", error);
-        throw error;
-      }
+  if (!data?.markets) return [];
 
-      if (!data?.markets) return [];
-
-      // Convert Google markets to our Market type
-      return data.markets.map((m): Market => ({
-        id: m.place_id,
-        name: m.name,
-        description: null,
-        address: m.address,
-        city: "",
-        state: "",
-        zip_code: null,
-        lat: m.lat,
-        lng: m.lng,
-        type: mapGoogleTypesToType(m.types),
-        is_open: m.open_now ?? true,
-        hours: null,
-        website: null,
-        phone: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        source: "osm", // Treat as OSM for UI purposes
-        photo_reference: m.photo_ref,
-      }));
-    },
-    enabled: enabled && lat !== null && lng !== null,
-    staleTime: 1000 * 60 * 10, // 10 minutes
-  });
+  return data.markets.map((m): Market => ({
+    id: m.place_id,
+    name: m.name,
+    description: null,
+    address: m.address,
+    city: "",
+    state: "",
+    zip_code: null,
+    lat: m.lat,
+    lng: m.lng,
+    type: mapGoogleTypesToType(m.types),
+    is_open: m.open_now ?? true,
+    hours: null,
+    website: null,
+    phone: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    source: "osm",
+    photo_reference: m.photo_ref,
+  }));
 }
 
 // Map OSM category to our market types
@@ -269,71 +259,83 @@ export function useCombinedMarkets(
   dietFilters?: DietFilters
 ) {
   const dbMarkets = useMarkets(searchQuery, dietFilters);
-  const osmMarkets = useNearbyMarkets(lat, lng, radius);
   
-  // Track if we should enable Google fallback - using state to avoid dynamic enabled changes
-  const [googleFallbackEnabled, setGoogleFallbackEnabled] = useState(false);
-  
-  // Update fallback state only when OSM query completes
-  useEffect(() => {
-    if (!osmMarkets.isLoading && osmMarkets.data !== undefined) {
-      const needsFallback = (osmMarkets.data?.length || 0) < 6;
-      setGoogleFallbackEnabled(needsFallback);
-    }
-  }, [osmMarkets.isLoading, osmMarkets.data]);
-  
-  // Always call the hook but control via stable enabled state
-  const googleMarkets = useQuery({
-    queryKey: ["nearby-google-places", lat?.toFixed(2), lng?.toFixed(2), radius],
+  // Single query that handles OSM + Google fallback internally
+  const nearbyMarkets = useQuery({
+    queryKey: ["nearby-markets-combined", lat?.toFixed(2), lng?.toFixed(2), radius],
     queryFn: async (): Promise<Market[]> => {
       if (!lat || !lng) return [];
+      
+      // First try OSM
+      const { data: osmData, error: osmError } = await supabase.functions.invoke<{
+        center: { lat: number; lng: number };
+        radius: number;
+        markets: Array<{
+          source: "osm";
+          source_id: string;
+          name: string;
+          lat: number;
+          lng: number;
+          category: string;
+          tags: Record<string, string>;
+          address?: { street?: string; city?: string; state?: string; zip?: string };
+          contact?: { phone?: string; website?: string };
+          opening_hours?: string;
+          confidence: number;
+          is_chain_suspected: boolean;
+        }>;
+      }>("nearby-markets", { body: { lat, lng, radius } });
 
-      const { data, error } = await supabase.functions.invoke<GooglePlacesResponse>(
-        "nearby-google-places",
-        {
-          body: { lat, lng, radius },
-        }
-      );
-
-      if (error) {
-        console.error("Error fetching Google Places markets:", error);
-        throw error;
+      if (osmError) {
+        console.error("Error fetching OSM markets:", osmError);
       }
 
-      if (!data?.markets) return [];
-
-      // Convert Google markets to our Market type
-      return data.markets.map((m): Market => ({
-        id: m.place_id,
+      const osmMarkets: Market[] = (osmData?.markets || []).map((m) => ({
+        id: m.source_id,
         name: m.name,
         description: null,
-        address: m.address,
-        city: "",
-        state: "",
-        zip_code: null,
+        address: m.address?.street || "Address unknown",
+        city: m.address?.city || "",
+        state: m.address?.state || "",
+        zip_code: m.address?.zip || null,
         lat: m.lat,
         lng: m.lng,
-        type: mapGoogleTypesToType(m.types),
-        is_open: m.open_now ?? true,
-        hours: null,
-        website: null,
-        phone: null,
+        type: mapCategoryToType(m.category),
+        is_open: true,
+        hours: m.opening_hours || null,
+        website: m.contact?.website || null,
+        phone: m.contact?.phone || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        source: "osm",
-        photo_reference: m.photo_ref,
+        source: "osm" as const,
+        confidence: m.confidence,
+        category: m.category,
+        organic: m.tags?.organic === "yes" || m.tags?.organic === "only" || m.category === "organic",
+        vegan_friendly: m.tags?.["diet:vegan"] === "yes" || m.tags?.["diet:vegetarian"] === "yes",
+        gluten_free: m.tags?.["diet:gluten_free"] === "yes",
       }));
+
+      // If OSM returns fewer than 6 results, fetch from Google Places as fallback
+      if (osmMarkets.length < 6) {
+        console.log(`[useCombinedMarkets] OSM returned ${osmMarkets.length} results, fetching Google Places fallback`);
+        const googleMarkets = await fetchGooglePlacesMarkets(lat, lng, radius);
+        
+        // Merge and dedupe
+        return mergeMarkets(osmMarkets, googleMarkets);
+      }
+
+      return osmMarkets;
     },
-    enabled: googleFallbackEnabled && lat !== null && lng !== null,
+    enabled: lat !== null && lng !== null,
     staleTime: 1000 * 60 * 10,
   });
 
-  const isLoading = dbMarkets.isLoading || osmMarkets.isLoading || (googleFallbackEnabled && googleMarkets.isLoading);
-  const error = dbMarkets.error || osmMarkets.error || googleMarkets.error;
+  const isLoading = dbMarkets.isLoading || nearbyMarkets.isLoading;
+  const error = dbMarkets.error || nearbyMarkets.error;
 
-  // Apply diet filters to OSM markets client-side
-  const filteredOsmMarkets = useMemo(() => {
-    let markets = osmMarkets.data || [];
+  // Apply diet filters to nearby markets client-side
+  const filteredNearbyMarkets = useMemo(() => {
+    let markets = nearbyMarkets.data || [];
     if (dietFilters) {
       markets = markets.filter((m) => {
         if (dietFilters.organic && !m.organic) return false;
@@ -343,18 +345,12 @@ export function useCombinedMarkets(
       });
     }
     return markets;
-  }, [osmMarkets.data, dietFilters]);
+  }, [nearbyMarkets.data, dietFilters]);
 
-  // Merge OSM with Google fallback results
-  const combinedNearbyMarkets = useMemo(() => 
-    mergeMarkets(filteredOsmMarkets, googleMarkets.data || []),
-    [filteredOsmMarkets, googleMarkets.data]
-  );
-
-  // Merge DB markets with combined nearby results
+  // Merge DB markets with nearby results
   const markets = useMemo(() => 
-    mergeMarkets(dbMarkets.data || [], combinedNearbyMarkets),
-    [dbMarkets.data, combinedNearbyMarkets]
+    mergeMarkets(dbMarkets.data || [], filteredNearbyMarkets),
+    [dbMarkets.data, filteredNearbyMarkets]
   );
 
   return {
@@ -362,11 +358,7 @@ export function useCombinedMarkets(
     isLoading,
     error,
     refetch: async () => {
-      await Promise.all([
-        dbMarkets.refetch(), 
-        osmMarkets.refetch(),
-        googleFallbackEnabled ? googleMarkets.refetch() : Promise.resolve(),
-      ]);
+      await Promise.all([dbMarkets.refetch(), nearbyMarkets.refetch()]);
     },
   };
 }
