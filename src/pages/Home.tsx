@@ -180,8 +180,11 @@ export default function Home() {
   // Fixed radius: 25 miles to fetch enough data for both Near (≤5mi) and Further (>5mi)
   const FETCH_RADIUS_METERS = 25 * 1609;
   
+  // Track the location used for the current market query to prevent stale data flash
+  const [lastFetchedLocation, setLastFetchedLocation] = useState<{lat: number, lng: number} | null>(null);
+  
   // Fetch real market data
-  const { data: markets = [], isLoading: marketsLoading } = useCombinedMarkets(
+  const { data: markets = [], isLoading: marketsLoading, isFetching: marketsFetching } = useCombinedMarkets(
     latitude,
     longitude,
     undefined,
@@ -189,6 +192,25 @@ export default function Home() {
     dietFilters,
     categoryFilters
   );
+  
+  // Update last fetched location when markets finish loading
+  useEffect(() => {
+    if (!marketsLoading && !marketsFetching && latitude && longitude && markets.length > 0) {
+      setLastFetchedLocation({ lat: latitude, lng: longitude });
+    }
+  }, [marketsLoading, marketsFetching, latitude, longitude, markets.length]);
+  
+  // Check if current location matches fetched data (prevents stale data flash)
+  const locationMatchesFetchedData = useMemo(() => {
+    if (!lastFetchedLocation || !latitude || !longitude) return false;
+    // Allow small tolerance for floating point comparison
+    return Math.abs(lastFetchedLocation.lat - latitude) < 0.001 && 
+           Math.abs(lastFetchedLocation.lng - longitude) < 0.001;
+  }, [lastFetchedLocation, latitude, longitude]);
+  
+  // Show loading if geo is loading, markets are loading/fetching, or data doesn't match current location
+  const isLoadingMarkets = geoLoading || marketsLoading || marketsFetching || 
+    (markets.length > 0 && !locationMatchesFetchedData);
   
   // Fetch real finds
   const { finds } = useFinds();
@@ -337,59 +359,61 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Loading State */}
-        {marketsLoading && markets.length === 0 && (
+        {/* Loading State - show during initial load OR when location changes */}
+        {isLoadingMarkets && (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
             <span className="ml-2 text-muted-foreground">Finding markets near you...</span>
           </div>
         )}
 
-        {/* Near You Section */}
-        <section>
-          <SectionHeader
-            title="Near you"
-            action={{ label: "See all", onClick: () => navigate("/map?filter=nearby") }}
-            extra={
-              <div className="flex items-center gap-2">
-                {/* Location indicator */}
-                {locationSource && (
-                  <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                    {locationSource === "zip" && activeZipCode
-                      ? `📍 ${activeZipCode}`
-                      : locationSource === "gps"
-                      ? "📍 GPS"
-                      : "📍 Manual"}
-                  </span>
-                )}
-                <LocationControl
-                  onLocationChange={handleLocationChange}
-                  onUseGps={handleUseGps}
-                  onSaveZipCode={user ? handleSaveZipCode : undefined}
-                  isLoading={geoLoading}
-                  currentSource={locationSource}
-                  savedZipCode={profile?.zip_code}
-                  currentZipCode={activeZipCode}
-                />
-              </div>
-            }
-            className="mb-3"
-          />
-          {nearbyMarkets.length > 0 ? (
-            <MarketCarousel
-              markets={nearbyMarkets}
-              onMarketClick={handleMarketClick}
-              showAllLink="/map?filter=nearby"
+        {/* Near You Section - only show when data is ready and matches current location */}
+        {!isLoadingMarkets && (
+          <section>
+            <SectionHeader
+              title="Near you"
+              action={{ label: "See all", onClick: () => navigate("/map?filter=nearby") }}
+              extra={
+                <div className="flex items-center gap-2">
+                  {/* Location indicator */}
+                  {locationSource && (
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                      {locationSource === "zip" && activeZipCode
+                        ? `📍 ${activeZipCode}`
+                        : locationSource === "gps"
+                        ? "📍 GPS"
+                        : "📍 Manual"}
+                    </span>
+                  )}
+                  <LocationControl
+                    onLocationChange={handleLocationChange}
+                    onUseGps={handleUseGps}
+                    onSaveZipCode={user ? handleSaveZipCode : undefined}
+                    isLoading={geoLoading}
+                    currentSource={locationSource}
+                    savedZipCode={profile?.zip_code}
+                    currentZipCode={activeZipCode}
+                  />
+                </div>
+              }
+              className="mb-3"
             />
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              No markets found within 5 miles. Check the "Further" section below or adjust your location.
-            </p>
-          )}
-        </section>
+            {nearbyMarkets.length > 0 ? (
+              <MarketCarousel
+                markets={nearbyMarkets}
+                onMarketClick={handleMarketClick}
+                showAllLink="/map?filter=nearby"
+              />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                No markets found within 5 miles. Check the "Further" section below or adjust your location.
+              </p>
+            )}
+          </section>
+        )}
 
-        {/* Further Out Section */}
-        {furtherOutMarkets.length > 0 && (
+        {/* Further Out Section - only show when data is ready */}
+        {!isLoadingMarkets && furtherOutMarkets.length > 0 && (
           <section>
             <SectionHeader
               title={`Further out (5+ mi)`}
