@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-const LOCATION_STORAGE_KEY = "nearish_last_location";
+const LOCATION_STORAGE_KEY = "nearish_user_location";
 
 interface StoredLocation {
   latitude: number;
@@ -17,15 +17,17 @@ interface GeolocationState {
   loading: boolean;
   source: "gps" | "zip" | "manual" | null;
   zipCode?: string;
+  hasPromptedForGps: boolean;
 }
 
-interface UseGeolocationReturn extends GeolocationState {
+interface UseGeolocationReturn extends Omit<GeolocationState, 'hasPromptedForGps'> {
   refreshLocation: () => void;
   setManualLocation: (lat: number, lng: number, source?: "zip" | "manual" | "gps", zipCode?: string) => void;
   clearManualLocation: () => void;
+  promptForGps: () => void;
 }
 
-// Persist location to localStorage
+// Persist location to localStorage (no TTL - persists until cleared)
 function saveLocation(location: StoredLocation) {
   try {
     localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(location));
@@ -34,17 +36,13 @@ function saveLocation(location: StoredLocation) {
   }
 }
 
-// Load location from localStorage
+// Load location from localStorage (no TTL expiry)
 function loadStoredLocation(): StoredLocation | null {
   try {
     const stored = localStorage.getItem(LOCATION_STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored) as StoredLocation;
-      // Only use if less than 24 hours old
-      const maxAge = 24 * 60 * 60 * 1000;
-      if (Date.now() - parsed.timestamp < maxAge) {
-        return parsed;
-      }
+      return parsed;
     }
   } catch (e) {
     console.warn("Failed to load location from localStorage:", e);
@@ -57,9 +55,11 @@ const DEFAULT_ZIP = "07016";
 const DEFAULT_LAT = 40.6584;
 const DEFAULT_LNG = -74.2995;
 
+const GPS_PROMPTED_KEY = "nearish_gps_prompted";
+
 export function useGeolocation(): UseGeolocationReturn {
   const [state, setState] = useState<GeolocationState>(() => {
-    // Try to restore from localStorage on init
+    // Check if user has a stored location preference
     const stored = loadStoredLocation();
     if (stored) {
       return {
@@ -69,26 +69,32 @@ export function useGeolocation(): UseGeolocationReturn {
         loading: false,
         source: stored.source,
         zipCode: stored.zipCode,
+        hasPromptedForGps: true,
       };
     }
-    // Default to 07016 zip code
+    
+    // Default to 07016 zip code, but mark that we haven't prompted for GPS yet
+    const hasPrompted = localStorage.getItem(GPS_PROMPTED_KEY) === "true";
     return {
       latitude: DEFAULT_LAT,
       longitude: DEFAULT_LNG,
       error: null,
-      loading: false,
+      loading: !hasPrompted, // Show loading if we're about to prompt
       source: "zip",
       zipCode: DEFAULT_ZIP,
+      hasPromptedForGps: hasPrompted,
     };
   });
 
-  const fetchGpsLocation = useCallback(() => {
+  const fetchGpsLocation = useCallback((isAutoPrompt: boolean = false) => {
     if (!navigator.geolocation) {
       setState((prev) => ({
         ...prev,
         error: "Geolocation is not supported by your browser",
         loading: false,
+        hasPromptedForGps: true,
       }));
+      localStorage.setItem(GPS_PROMPTED_KEY, "true");
       return;
     }
 
@@ -102,6 +108,7 @@ export function useGeolocation(): UseGeolocationReturn {
         loading: false,
         source: "gps" as const,
         zipCode: undefined,
+        hasPromptedForGps: true,
       };
       setState(newState);
       saveLocation({
@@ -110,26 +117,35 @@ export function useGeolocation(): UseGeolocationReturn {
         source: "gps",
         timestamp: Date.now(),
       });
+      localStorage.setItem(GPS_PROMPTED_KEY, "true");
     };
 
     const errorHandler = (error: GeolocationPositionError) => {
-      let errorMessage = "Unable to get your location";
-      switch (error.code) {
-        case error.PERMISSION_DENIED:
-          errorMessage = "Location permission denied";
-          break;
-        case error.POSITION_UNAVAILABLE:
-          errorMessage = "Location information unavailable";
-          break;
-        case error.TIMEOUT:
-          errorMessage = "Location request timed out";
-          break;
+      let errorMessage: string | null = null;
+      
+      // Only show error if this was a manual request, not auto-prompt
+      if (!isAutoPrompt) {
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = "Location permission denied";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = "Location information unavailable";
+            break;
+          case error.TIMEOUT:
+            errorMessage = "Location request timed out";
+            break;
+        }
       }
+      
+      // On failure, keep the default 07016 location
       setState((prev) => ({
         ...prev,
         error: errorMessage,
         loading: false,
+        hasPromptedForGps: true,
       }));
+      localStorage.setItem(GPS_PROMPTED_KEY, "true");
     };
 
     navigator.geolocation.getCurrentPosition(successHandler, errorHandler, {
@@ -139,7 +155,12 @@ export function useGeolocation(): UseGeolocationReturn {
     });
   }, []);
 
-  // No auto GPS fetch on load - we default to 07016 and user can tap "Use my location"
+  // Auto-prompt for GPS on first visit (if no stored location)
+  useEffect(() => {
+    if (!state.hasPromptedForGps) {
+      fetchGpsLocation(true);
+    }
+  }, [state.hasPromptedForGps, fetchGpsLocation]);
 
   const setManualLocation = useCallback(
     (lat: number, lng: number, source: "zip" | "manual" | "gps" = "manual", zipCode?: string) => {
@@ -150,6 +171,7 @@ export function useGeolocation(): UseGeolocationReturn {
         loading: false,
         source,
         zipCode,
+        hasPromptedForGps: true,
       };
       setState(newState);
       saveLocation({
@@ -166,16 +188,36 @@ export function useGeolocation(): UseGeolocationReturn {
   const clearManualLocation = useCallback(() => {
     try {
       localStorage.removeItem(LOCATION_STORAGE_KEY);
+      localStorage.removeItem(GPS_PROMPTED_KEY);
     } catch (e) {
       console.warn("Failed to clear location from localStorage:", e);
     }
-    fetchGpsLocation();
+    // Reset to default and prompt for GPS again
+    setState({
+      latitude: DEFAULT_LAT,
+      longitude: DEFAULT_LNG,
+      error: null,
+      loading: true,
+      source: "zip",
+      zipCode: DEFAULT_ZIP,
+      hasPromptedForGps: false,
+    });
+  }, []);
+
+  const promptForGps = useCallback(() => {
+    fetchGpsLocation(false);
   }, [fetchGpsLocation]);
 
   return {
-    ...state,
-    refreshLocation: fetchGpsLocation,
+    latitude: state.latitude,
+    longitude: state.longitude,
+    error: state.error,
+    loading: state.loading,
+    source: state.source,
+    zipCode: state.zipCode,
+    refreshLocation: () => fetchGpsLocation(false),
     setManualLocation,
     clearManualLocation,
+    promptForGps,
   };
 }
