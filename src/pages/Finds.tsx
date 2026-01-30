@@ -8,7 +8,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useFinds } from "@/hooks/useFinds";
 import { useFollows } from "@/hooks/useFollows";
+import { useAuth } from "@/hooks/useAuth";
 import { Loader2, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // Import images for fallback/mock data
 import find1 from "@/assets/find-1.jpg";
@@ -110,6 +112,7 @@ export default function Finds() {
   const navigate = useNavigate();
   const { finds, loading, toggleThanks } = useFinds();
   const { following } = useFollows();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"for-you" | "following">("for-you");
   const [selectedFind, setSelectedFind] = useState<{
     id: string;
@@ -247,8 +250,20 @@ export default function Finds() {
       {!loading && displayFinds.length === 0 && activeTab === "following" && (
         <div className="text-center py-12 text-muted-foreground">
           <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p className="font-medium">No finds from people you follow</p>
-          <p className="text-sm mt-1">Follow more users to see their finds here!</p>
+          {!user ? (
+            <>
+              <p className="font-medium">Build a following</p>
+              <p className="text-sm mt-1">Sign up or sign in to follow creators</p>
+              <Button onClick={() => navigate("/auth")} className="mt-4">
+                Sign In
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="font-medium">No finds from people you follow</p>
+              <p className="text-sm mt-1">Follow more users to see their finds here!</p>
+            </>
+          )}
         </div>
       )}
 
