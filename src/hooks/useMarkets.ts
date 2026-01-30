@@ -44,6 +44,15 @@ export interface DietFilters {
   glutenFree: boolean;
 }
 
+export type MarketCategory = "farmers_market" | "farm_stand" | "bakery" | "organic_grocery";
+
+export interface CategoryFilters {
+  farmers_market: boolean;
+  farm_stand: boolean;
+  bakery: boolean;
+  organic_grocery: boolean;
+}
+
 // OSM market type from edge function
 interface OSMMarket {
   source: "osm";
@@ -250,13 +259,59 @@ function mapGoogleTypesToType(types: string[]): string {
   return "farmers";
 }
 
+// Map internal types to category filters
+function matchesCategory(market: Market, categoryFilters?: CategoryFilters): boolean {
+  if (!categoryFilters) return true;
+  
+  const activeFilters = Object.entries(categoryFilters).filter(([_, active]) => active);
+  if (activeFilters.length === 0) return true;
+  
+  const type = market.type?.toLowerCase() || "";
+  const category = market.category?.toLowerCase() || "";
+  const name = market.name?.toLowerCase() || "";
+  
+  for (const [filterKey] of activeFilters) {
+    switch (filterKey) {
+      case "farmers_market":
+        if (type === "farmers" || category === "farmers_market" || 
+            name.includes("farmer") || name.includes("greenmarket")) {
+          return true;
+        }
+        break;
+      case "farm_stand":
+        if (category === "farm_shop" || category === "produce" ||
+            name.includes("farm stand") || name.includes("farmstand") ||
+            name.includes("produce")) {
+          return true;
+        }
+        break;
+      case "bakery":
+        if (type === "artisan" || category === "bakery" || 
+            name.includes("bakery") || name.includes("bread")) {
+          return true;
+        }
+        break;
+      case "organic_grocery":
+        if (category === "organic" || category === "health_food" ||
+            name.includes("organic") || name.includes("health food") ||
+            name.includes("co-op") || name.includes("coop")) {
+          return true;
+        }
+        break;
+    }
+  }
+  
+  return false;
+}
+
 // Combined hook that merges DB markets with OSM + Google fallback
 export function useCombinedMarkets(
   lat: number | null,
   lng: number | null,
   searchQuery?: string,
   radius: number = DEFAULT_RADIUS_METERS,
-  dietFilters?: DietFilters
+  dietFilters?: DietFilters,
+  categoryFilters?: CategoryFilters
 ) {
   const dbMarkets = useMarkets(searchQuery, dietFilters);
   
@@ -333,9 +388,11 @@ export function useCombinedMarkets(
   const isLoading = dbMarkets.isLoading || nearbyMarkets.isLoading;
   const error = dbMarkets.error || nearbyMarkets.error;
 
-  // Apply diet filters to nearby markets client-side
+  // Apply diet and category filters to nearby markets client-side
   const filteredNearbyMarkets = useMemo(() => {
     let markets = nearbyMarkets.data || [];
+    
+    // Apply diet filters
     if (dietFilters) {
       markets = markets.filter((m) => {
         if (dietFilters.organic && !m.organic) return false;
@@ -344,8 +401,12 @@ export function useCombinedMarkets(
         return true;
       });
     }
+    
+    // Apply category filters
+    markets = markets.filter((m) => matchesCategory(m, categoryFilters));
+    
     return markets;
-  }, [nearbyMarkets.data, dietFilters]);
+  }, [nearbyMarkets.data, dietFilters, categoryFilters]);
 
   // Merge DB markets with nearby results
   const markets = useMemo(() => 

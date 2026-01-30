@@ -9,6 +9,7 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { FindDetailPopup } from "@/components/FindDetailPopup";
 import { MarketDetailPopup } from "@/components/MarketDetailPopup";
 import { DietFilterBar, DietFilters } from "@/components/DietFilterBar";
+import { CategoryFilterBar, CategoryFilters } from "@/components/CategoryFilterBar";
 import { ClaimMarketModal } from "@/components/ClaimMarketModal";
 import { LocationControl } from "@/components/LocationControl";
 import { useGeolocation } from "@/hooks/useGeolocation";
@@ -111,6 +112,12 @@ export default function Home() {
     veganFriendly: false,
     glutenFree: false,
   });
+  const [categoryFilters, setCategoryFilters] = useState<CategoryFilters>({
+    farmers_market: false,
+    farm_stand: false,
+    bakery: false,
+    organic_grocery: false,
+  });
   
   const { user } = useAuth();
   const { profile, updateProfile } = useProfile();
@@ -178,7 +185,8 @@ export default function Home() {
     longitude,
     undefined,
     radius * 1609, // Convert miles to meters
-    dietFilters
+    dietFilters,
+    categoryFilters
   );
   
   // Fetch real finds
@@ -311,6 +319,11 @@ export default function Home() {
 
       {/* Content */}
       <div className={isMobile ? "px-4 py-4 space-y-6" : "space-y-6"}>
+        {/* Category Filters */}
+        <section className={isMobile ? "-mx-4 px-4" : ""}>
+          <CategoryFilterBar filters={categoryFilters} onChange={setCategoryFilters} />
+        </section>
+        
         {/* Diet Filters */}
         <section className={isMobile ? "-mx-4 px-4" : ""}>
           <DietFilterBar filters={dietFilters} onChange={setDietFilters} />

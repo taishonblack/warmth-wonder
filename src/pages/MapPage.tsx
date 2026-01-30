@@ -5,6 +5,7 @@ import { MapLegend } from "@/components/MapLegend";
 import { MapView } from "@/components/MapView";
 import { MapSearchBar } from "@/components/MapSearchBar";
 import { DietFilterBar, DietFilters } from "@/components/DietFilterBar";
+import { CategoryFilterBar, CategoryFilters } from "@/components/CategoryFilterBar";
 import { ClaimMarketModal } from "@/components/ClaimMarketModal";
 import { RadiusSelector } from "@/components/RadiusSelector";
 import { useGeolocation } from "@/hooks/useGeolocation";
@@ -23,6 +24,12 @@ export default function MapPage() {
     veganFriendly: false,
     glutenFree: false,
   });
+  const [categoryFilters, setCategoryFilters] = useState<CategoryFilters>({
+    farmers_market: false,
+    farm_stand: false,
+    bakery: false,
+    organic_grocery: false,
+  });
   
   const { latitude, longitude, loading: geoLoading, error: geoError } = useGeolocation();
   const { radius, setRadius } = useProximitySettings();
@@ -32,7 +39,7 @@ export default function MapPage() {
     data: markets = [], 
     isLoading: marketsLoading,
     refetch,
-  } = useCombinedMarkets(latitude, longitude, searchQuery, radius * 1609, dietFilters);
+  } = useCombinedMarkets(latitude, longitude, searchQuery, radius * 1609, dietFilters, categoryFilters);
 
   const userLocation = latitude && longitude ? { lat: latitude, lng: longitude } : null;
 
@@ -85,6 +92,12 @@ export default function MapPage() {
         <MapSearchBar
           markets={markets}
           onMarketSelect={handleMarketSelect}
+        />
+        {/* Category Filters */}
+        <CategoryFilterBar 
+          filters={categoryFilters} 
+          onChange={setCategoryFilters}
+          className="bg-card/90 backdrop-blur-sm rounded-xl p-2"
         />
         <div className="flex items-center gap-2">
           <div className="flex-1">
