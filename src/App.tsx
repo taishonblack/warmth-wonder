@@ -3,10 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { LocationProvider } from "@/contexts/LocationContext";
 import { AppLayout } from "@/components/layout/AppLayout";
-import Landing from "./pages/Landing";
-import Explore from "./pages/Explore";
+import Home from "./pages/Home";
 import Finds from "./pages/Finds";
 import MapPage from "./pages/MapPage";
 import Forum from "./pages/Forum";
@@ -22,29 +20,25 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <LocationProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <AppLayout>
           <Routes>
-            {/* Landing page - no layout wrapper */}
-            <Route path="/" element={<Landing />} />
-            
-            {/* App pages - with layout */}
-            <Route path="/explore" element={<AppLayout><Explore /></AppLayout>} />
-            <Route path="/finds" element={<AppLayout><Finds /></AppLayout>} />
+            <Route path="/" element={<Home />} />
+            <Route path="/finds" element={<Finds />} />
             <Route path="/map" element={<MapPage />} />
-            <Route path="/forum" element={<AppLayout><Forum /></AppLayout>} />
-            <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
-            <Route path="/u/:userId" element={<AppLayout><UserProfile /></AppLayout>} />
-            <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
+            <Route path="/forum" element={<Forum />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/u/:userId" element={<UserProfile />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/market/:marketId" element={<AppLayout><MarketDetail /></AppLayout>} />
+            <Route path="/market/:marketId" element={<MarketDetail />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-      </LocationProvider>
+        </AppLayout>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );

@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 // Keep Profile in mobile nav since there's no dropdown
 const navItems = [
-  { icon: Home, path: "/explore", label: "Explore" },
+  { icon: Home, path: "/", label: "Explore" },
   { icon: Binoculars, path: "/finds", label: "Finds" },
   { icon: null, path: null, label: "Share", isShareButton: true },
   { icon: Map, path: "/map", label: "Map" },
