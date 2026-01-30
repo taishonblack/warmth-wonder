@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Loader2 } from "lucide-react";
+import { MapPin, Loader2, Map } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
 import { MarketCarousel } from "@/components/MarketCarousel";
 import { MasonryGrid } from "@/components/MasonryGrid";
@@ -12,9 +12,8 @@ import { DietFilterBar, DietFilters } from "@/components/DietFilterBar";
 import { CategoryFilterBar, CategoryFilters } from "@/components/CategoryFilterBar";
 import { ClaimMarketModal } from "@/components/ClaimMarketModal";
 import { LocationControl } from "@/components/LocationControl";
-import { useGeolocation } from "@/hooks/useGeolocation";
-import { useProximitySettings, ProximityRadius } from "@/hooks/useProximitySettings";
-import { RadiusSelector } from "@/components/RadiusSelector";
+import { Button } from "@/components/ui/button";
+import { useLocation } from "@/contexts/LocationContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCombinedMarkets, calculateDistance, Market } from "@/hooks/useMarkets";
 import { useFinds } from "@/hooks/useFinds";
@@ -32,6 +31,11 @@ import find3 from "@/assets/find-3.jpg";
 import find4 from "@/assets/find-4.jpg";
 import find5 from "@/assets/find-5.jpg";
 import find6 from "@/assets/find-6.jpg";
+
+// Near = 0-5 miles, Further = 5+ miles (hard-coded)
+const NEAR_RADIUS_MILES = 5;
+const FURTHER_RADIUS_MILES = 20;
+const FURTHER_RADIUS_METERS = FURTHER_RADIUS_MILES * 1609;
 
 // Fallback mock finds for empty states
 const mockFinds = [
@@ -102,8 +106,9 @@ interface HomeMarket extends Market {
   distanceMiles?: number;
 }
 
-export default function Home() {
+export default function Explore() {
   const navigate = useNavigate();
+  const { status, anchor, setAnchor, requestGps } = useLocation();
   const [selectedFind, setSelectedFind] = useState<typeof mockFinds[0] & { posterId?: string } | null>(null);
   const [selectedMarket, setSelectedMarket] = useState<HomeMarket | null>(null);
   const [claimingMarket, setClaimingMarket] = useState<Market | null>(null);
@@ -121,74 +126,25 @@ export default function Home() {
   
   const { user } = useAuth();
   const { profile, updateProfile } = useProfile();
-  
-  // Debug mode - toggle with localStorage for filtering diagnostics
-  const [debugMode] = useState(() => localStorage.getItem("nearish_debug") === "true");
-  
-  const { 
-    latitude, 
-    longitude, 
-    loading: geoLoading, 
-    error: geoError,
-    source: locationSource,
-    zipCode: activeZipCode,
-    setManualLocation,
-    refreshLocation,
-  } = useGeolocation();
-  const { radius, setRadius } = useProximitySettings();
   const isMobile = useIsMobile();
-  const { location: locationInfo, isLoading: locationLoading } = useReverseGeocode(latitude, longitude);
+  const { location: locationInfo, isLoading: locationLoading } = useReverseGeocode(
+    anchor?.lat ?? null, 
+    anchor?.lng ?? null
+  );
 
-  // Load saved zip code location on mount
+  // Redirect to landing if no location anchor
   useEffect(() => {
-    const loadSavedZipLocation = async () => {
-      if (profile?.zip_code && !latitude && !longitude) {
-        try {
-          // Use edge function to proxy geocoding requests (avoids CORS)
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/geocode?type=forward&postalcode=${profile.zip_code}&country=US`,
-            {
-              headers: {
-                'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              },
-            }
-          );
-          if (!response.ok) throw new Error('Geocoding failed');
-          const data = await response.json();
-          if (data?.[0]) {
-            setManualLocation(parseFloat(data[0].lat), parseFloat(data[0].lon), "zip");
-          }
-        } catch (err) {
-          console.error("Failed to geocode saved zip:", err);
-        }
-      }
-    };
-    
-    loadSavedZipLocation();
-  }, [profile?.zip_code]);
-
-  const handleLocationChange = (lat: number, lng: number, source: "zip" | "gps", zipCode?: string) => {
-    if (source === "zip") {
-      setManualLocation(lat, lng, "zip", zipCode);
+    if (status === "unknown") {
+      navigate("/");
     }
-  };
+  }, [status, navigate]);
 
-  const handleSaveZipCode = async (zipCode: string) => {
-    if (user) {
-      await updateProfile({ zip_code: zipCode });
-    }
-  };
-
-  const handleUseGps = () => {
-    refreshLocation();
-  };
-  
-  // Fetch real market data
+  // Fetch real market data with 20mi radius (we'll split into Near/Further client-side)
   const { data: markets = [], isLoading: marketsLoading } = useCombinedMarkets(
-    latitude,
-    longitude,
+    anchor?.lat ?? null,
+    anchor?.lng ?? null,
     undefined,
-    radius * 1609, // Convert miles to meters
+    FURTHER_RADIUS_METERS,
     dietFilters,
     categoryFilters
   );
@@ -196,7 +152,7 @@ export default function Home() {
   // Fetch real finds
   const { finds } = useFinds();
   
-  // Fetch real photos for markets (including photo_reference for Google markets)
+  // Fetch real photos for markets
   const photoMap = useMarketPhotos(
     markets.map((m) => ({
       id: m.id,
@@ -209,42 +165,25 @@ export default function Home() {
     }))
   );
   
-  // Split markets into nearby and further out with photos
-  const { nearbyMarkets, furtherOutMarkets } = useMemo(() => {
-    if (!latitude || !longitude) {
-      return { 
-        nearbyMarkets: markets.slice(0, 6).map((m) => ({
-          ...m,
-          image: photoMap.get(m.id) || m.photo_url || market1,
-        })), 
-        furtherOutMarkets: [] 
-      };
+  // Split markets into Near (≤5mi) and Further (>5mi)
+  const { nearMarkets, furtherMarkets } = useMemo(() => {
+    if (!anchor) {
+      return { nearMarkets: [], furtherMarkets: [] };
     }
     
     const marketsWithDistance = markets.map((m) => ({
       ...m,
-      distanceMiles: calculateDistance(latitude, longitude, m.lat, m.lng),
+      distanceMiles: calculateDistance(anchor.lat, anchor.lng, m.lat, m.lng),
       image: photoMap.get(m.id) || m.photo_url || market1,
     }));
     
     const sorted = marketsWithDistance.sort((a, b) => a.distanceMiles - b.distanceMiles);
     
-    // Debug logging for filtered markets
-    if (debugMode) {
-      const filteredOut = sorted.filter((m) => m.distanceMiles > radius);
-      if (filteredOut.length > 0) {
-        console.log(`[DEBUG] Markets filtered out (>${radius}mi):`, 
-          filteredOut.slice(0, 10).map(m => `${m.name} (${m.distanceMiles.toFixed(1)}mi)`)
-        );
-      }
-      console.log(`[DEBUG] Total markets: ${sorted.length}, Within ${radius}mi: ${sorted.filter(m => m.distanceMiles <= radius).length}`);
-    }
-    
     return {
-      nearbyMarkets: sorted.filter((m) => m.distanceMiles <= 5).slice(0, 15),
-      furtherOutMarkets: sorted.filter((m) => m.distanceMiles > 5 && m.distanceMiles <= radius).slice(0, 15),
+      nearMarkets: sorted.filter((m) => m.distanceMiles <= NEAR_RADIUS_MILES).slice(0, 15),
+      furtherMarkets: sorted.filter((m) => m.distanceMiles > NEAR_RADIUS_MILES).slice(0, 15),
     };
-  }, [markets, latitude, longitude, radius, photoMap, debugMode]);
+  }, [markets, anchor, photoMap]);
   
   // Use real finds or fallback to mocks
   const displayFinds = finds.length > 0 
@@ -261,8 +200,18 @@ export default function Home() {
       }))
     : mockFinds.map(f => ({ ...f, posterId: undefined }));
 
+  const handleLocationChange = (lat: number, lng: number, source: "zip" | "gps", zipCode?: string) => {
+    setAnchor(lat, lng, source, zipCode);
+    if (user && zipCode) {
+      updateProfile({ zip_code: zipCode });
+    }
+  };
+
+  const handleUseGps = () => {
+    requestGps();
+  };
+
   const handleMarketClick = (market: HomeMarket) => {
-    // Navigate to market detail page if it's a DB market, otherwise show popup
     if (market.source === "db") {
       navigate(`/market/${market.id}`);
     } else {
@@ -292,9 +241,21 @@ export default function Home() {
 
   const masonryColumns = isMobile ? 2 : 4;
 
+  // Show loading while waiting for location
+  if (status === "resolving") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Finding your location...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header - only show on mobile, desktop uses sidebar */}
+      {/* Header - only show on mobile */}
       {isMobile && (
         <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm pt-4 pb-2 px-4">
           <div className="flex items-center justify-between mb-4">
@@ -302,31 +263,23 @@ export default function Home() {
               <img src={nearishLogo} alt="Nearish logo" className="w-8 h-8 object-contain" />
               <h1 className="font-serif text-2xl font-bold text-primary">nearish</h1>
             </div>
-            {/* Geolocation indicator */}
+            {/* Location indicator */}
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              {geoLoading || locationLoading ? (
+              {locationLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span className="text-xs">Locating...</span>
                 </>
-              ) : geoError ? (
-                <>
-                  <MapPin className="w-4 h-4 text-accent" />
-                  <span className="text-xs">{geoError}</span>
-                </>
-              ) : locationInfo ? (
+              ) : anchor ? (
                 <>
                   <MapPin className="w-4 h-4 text-secondary" />
                   <span className="text-xs font-medium truncate max-w-[120px]">
-                    {locationInfo.displayName}
+                    {anchor.source === "zip" && anchor.zipCode
+                      ? anchor.zipCode
+                      : locationInfo?.displayName || "GPS"}
                   </span>
                 </>
-              ) : (
-                <>
-                  <MapPin className="w-4 h-4 text-secondary" />
-                  <span className="text-xs">Within {radius} mi</span>
-                </>
-              )}
+              ) : null}
             </div>
           </div>
           <SearchBar />
@@ -359,55 +312,59 @@ export default function Home() {
             action={{ label: "See all", onClick: () => navigate("/map?filter=nearby") }}
             extra={
               <div className="flex items-center gap-2">
-                {/* Location indicator */}
-                {locationSource && (
+                {/* Location badge */}
+                {anchor && (
                   <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                    {locationSource === "zip" && activeZipCode
-                      ? `📍 ${activeZipCode}`
-                      : locationSource === "gps"
-                      ? "📍 GPS"
-                      : "📍 Manual"}
+                    {anchor.source === "zip" && anchor.zipCode
+                      ? `📍 ${anchor.zipCode}`
+                      : "📍 GPS"}
                   </span>
                 )}
-                <RadiusSelector
-                  value={radius}
-                  onChange={(r: ProximityRadius) => setRadius(r)}
-                />
                 <LocationControl
                   onLocationChange={handleLocationChange}
                   onUseGps={handleUseGps}
-                  onSaveZipCode={user ? handleSaveZipCode : undefined}
-                  isLoading={geoLoading}
-                  currentSource={locationSource}
+                  onSaveZipCode={user ? (zipCode) => updateProfile({ zip_code: zipCode }) : undefined}
+                  isLoading={false}
+                  currentSource={anchor?.source ?? null}
                   savedZipCode={profile?.zip_code}
                 />
               </div>
             }
             className="mb-3"
           />
-          {nearbyMarkets.length > 0 ? (
+          {nearMarkets.length > 0 ? (
             <MarketCarousel
-              markets={nearbyMarkets}
+              markets={nearMarkets}
               onMarketClick={handleMarketClick}
               showAllLink="/map?filter=nearby"
             />
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              No markets found nearby. Try expanding your search radius in settings.
-            </p>
+          ) : marketsLoading ? null : (
+            <div className="bg-card/50 rounded-xl p-6 border border-border/50 text-center space-y-3">
+              <p className="text-muted-foreground">
+                No markets within 5 miles.
+              </p>
+              <Button
+                variant="secondary"
+                onClick={() => navigate("/map")}
+                className="gap-2"
+              >
+                <Map className="w-4 h-4" />
+                Open Map to explore further
+              </Button>
+            </div>
           )}
         </section>
 
-        {/* Further Out Section */}
-        {furtherOutMarkets.length > 0 && (
+        {/* Further Section */}
+        {furtherMarkets.length > 0 && (
           <section>
             <SectionHeader
-              title={`Further out (5+ mi)`}
+              title="Further (5+ mi)"
               action={{ label: "See all", onClick: () => navigate("/map?filter=further") }}
               className="mb-3"
             />
             <MarketCarousel
-              markets={furtherOutMarkets}
+              markets={furtherMarkets}
               onMarketClick={handleMarketClick}
               showAllLink="/map?filter=further"
             />
@@ -448,7 +405,7 @@ export default function Home() {
         find={selectedFind}
       />
 
-      {/* Market Detail Popup - Enhanced with claim option */}
+      {/* Market Detail Popup */}
       {selectedMarket && (
         <div className="fixed inset-0 z-50 flex items-end justify-center">
           <div
@@ -477,7 +434,7 @@ export default function Home() {
               )}
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 overflow-y-auto max-h-[50vh]">
               <div>
                 <h2 className="text-xl font-semibold text-foreground">
                   {selectedMarket.name}
@@ -486,61 +443,53 @@ export default function Home() {
                   <MapPin className="w-4 h-4" />
                   {selectedMarket.address}, {selectedMarket.city}
                 </p>
+                {selectedMarket.distanceMiles && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {selectedMarket.distanceMiles.toFixed(1)} miles away
+                  </p>
+                )}
               </div>
 
               {/* Diet badges */}
               <div className="flex flex-wrap gap-2">
                 {selectedMarket.organic && (
-                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/20 text-primary">
-                    🌿 Organic
+                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                    Organic
                   </span>
                 )}
                 {selectedMarket.vegan_friendly && (
-                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/20 text-primary">
-                    💚 Vegan-Friendly
+                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-secondary/20 text-secondary-foreground">
+                    Vegan-friendly
                   </span>
                 )}
                 {selectedMarket.gluten_free && (
-                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/20 text-primary">
-                    🌾 Gluten-Free
+                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-accent/20 text-accent-foreground">
+                    Gluten-free
                   </span>
                 )}
               </div>
 
               {selectedMarket.hours && (
-                <p className="text-sm text-muted-foreground">
-                  🕐 {selectedMarket.hours}
-                </p>
-              )}
-
-              {selectedMarket.description && (
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {selectedMarket.description}
-                </p>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Hours</p>
+                  <p className="text-sm text-muted-foreground">{selectedMarket.hours}</p>
+                </div>
               )}
 
               <div className="flex gap-3 pt-2">
-                {selectedMarket.source === "osm" && !selectedMarket.claimed_by && (
-                  <button
-                    onClick={handleClaimMarket}
-                    className="flex-1 py-3 bg-secondary text-secondary-foreground rounded-xl font-medium hover:bg-secondary/90 transition-colors"
-                  >
-                    Claim & Verify
-                  </button>
-                )}
-                <button
+                <Button
+                  variant="outline"
+                  className="flex-1"
                   onClick={() => {
-                    if (selectedMarket.source === "db") {
-                      navigate(`/market/${selectedMarket.id}`);
-                    } else {
-                      navigate(`/map?market=${selectedMarket.id}`);
-                    }
-                    setSelectedMarket(null);
+                    const url = `https://www.google.com/maps/dir/?api=1&destination=${selectedMarket.lat},${selectedMarket.lng}`;
+                    window.open(url, "_blank");
                   }}
-                  className="flex-1 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
                 >
-                  {selectedMarket.source === "db" ? "View Details" : "View on Map"}
-                </button>
+                  Get Directions
+                </Button>
+                <Button className="flex-1" onClick={handleClaimMarket}>
+                  Claim This Market
+                </Button>
               </div>
             </div>
           </div>
@@ -552,9 +501,7 @@ export default function Home() {
         isOpen={!!claimingMarket}
         onClose={() => setClaimingMarket(null)}
         market={claimingMarket}
-        onClaimed={() => {
-          setClaimingMarket(null);
-        }}
+        onClaimed={() => setClaimingMarket(null)}
       />
     </div>
   );

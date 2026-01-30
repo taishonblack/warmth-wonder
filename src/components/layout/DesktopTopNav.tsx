@@ -15,7 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 // Remove Profile from nav - it's in the user dropdown now
 const navItems = [
-  { icon: Home, path: "/", label: "Explore" },
+  { icon: Home, path: "/explore", label: "Explore" },
   { icon: Binoculars, path: "/finds", label: "Finds" },
   { icon: Map, path: "/map", label: "Map" },
   { icon: MessageCircle, path: "/forum", label: "Forum" },
@@ -38,7 +38,7 @@ export function DesktopTopNav() {
     <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center gap-6">
         {/* Logo - Left */}
-        <Link to="/" className="flex items-center gap-2 shrink-0">
+        <Link to="/explore" className="flex items-center gap-2 shrink-0">
           <img src={nearishLogo} alt="Nearish logo" className="w-8 h-8 object-contain" />
           <h1 className="font-serif text-xl font-bold text-primary">nearish</h1>
         </Link>
