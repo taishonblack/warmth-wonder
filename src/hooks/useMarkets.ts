@@ -67,12 +67,35 @@ interface OSMMarket {
   is_chain_suspected: boolean;
 }
 
+// Google Places market type from edge function
+interface GoogleMarket {
+  source: "google";
+  place_id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  address: string;
+  open_now: boolean | null;
+  photo_ref: string | null;
+  types: string[];
+}
+
 interface NearbyMarketsResponse {
   center: { lat: number; lng: number };
   radius: number;
   markets: OSMMarket[];
   fetched_at: string;
 }
+
+interface GooglePlacesResponse {
+  center: { lat: number; lng: number };
+  radius: number;
+  markets: GoogleMarket[];
+  fetched_at: string;
+}
+
+// Default radius: ~15 miles for better suburban coverage
+const DEFAULT_RADIUS_METERS = 24140;
 
 // Fetch markets from database
 export function useMarkets(searchQuery?: string, dietFilters?: DietFilters) {
@@ -111,7 +134,7 @@ export function useMarkets(searchQuery?: string, dietFilters?: DietFilters) {
 }
 
 // Fetch nearby markets from OSM via edge function
-export function useNearbyMarkets(lat: number | null, lng: number | null, radius: number = 8000) {
+export function useNearbyMarkets(lat: number | null, lng: number | null, radius: number = DEFAULT_RADIUS_METERS) {
   return useQuery({
     queryKey: ["nearby-markets", lat?.toFixed(2), lng?.toFixed(2), radius],
     queryFn: async (): Promise<Market[]> => {
@@ -163,6 +186,54 @@ export function useNearbyMarkets(lat: number | null, lng: number | null, radius:
   });
 }
 
+// Fetch nearby markets from Google Places via edge function (fallback)
+export function useNearbyGooglePlaces(lat: number | null, lng: number | null, radius: number = DEFAULT_RADIUS_METERS, enabled: boolean = false) {
+  return useQuery({
+    queryKey: ["nearby-google-places", lat?.toFixed(2), lng?.toFixed(2), radius],
+    queryFn: async (): Promise<Market[]> => {
+      if (!lat || !lng) return [];
+
+      const { data, error } = await supabase.functions.invoke<GooglePlacesResponse>(
+        "nearby-google-places",
+        {
+          body: { lat, lng, radius },
+        }
+      );
+
+      if (error) {
+        console.error("Error fetching Google Places markets:", error);
+        throw error;
+      }
+
+      if (!data?.markets) return [];
+
+      // Convert Google markets to our Market type
+      return data.markets.map((m): Market => ({
+        id: m.place_id,
+        name: m.name,
+        description: null,
+        address: m.address,
+        city: "",
+        state: "",
+        zip_code: null,
+        lat: m.lat,
+        lng: m.lng,
+        type: mapGoogleTypesToType(m.types),
+        is_open: m.open_now ?? true,
+        hours: null,
+        website: null,
+        phone: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        source: "osm", // Treat as OSM for UI purposes
+        photo_reference: m.photo_ref,
+      }));
+    },
+    enabled: enabled && lat !== null && lng !== null,
+    staleTime: 1000 * 60 * 10, // 10 minutes
+  });
+}
+
 // Map OSM category to our market types
 function mapCategoryToType(category: string): string {
   switch (category) {
@@ -181,19 +252,31 @@ function mapCategoryToType(category: string): string {
   }
 }
 
-// Combined hook that merges DB markets with OSM markets
+// Map Google Places types to our market types
+function mapGoogleTypesToType(types: string[]): string {
+  if (types.includes("bakery")) return "artisan";
+  if (types.includes("health")) return "artisan";
+  return "farmers";
+}
+
+// Combined hook that merges DB markets with OSM + Google fallback
 export function useCombinedMarkets(
   lat: number | null,
   lng: number | null,
   searchQuery?: string,
-  radius: number = 8000,
+  radius: number = DEFAULT_RADIUS_METERS,
   dietFilters?: DietFilters
 ) {
   const dbMarkets = useMarkets(searchQuery, dietFilters);
   const osmMarkets = useNearbyMarkets(lat, lng, radius);
+  
+  // Enable Google fallback if OSM returns fewer than 6 results
+  const osmCount = osmMarkets.data?.length || 0;
+  const needsGoogleFallback = !osmMarkets.isLoading && osmCount < 6;
+  const googleMarkets = useNearbyGooglePlaces(lat, lng, radius, needsGoogleFallback);
 
-  const isLoading = dbMarkets.isLoading || osmMarkets.isLoading;
-  const error = dbMarkets.error || osmMarkets.error;
+  const isLoading = dbMarkets.isLoading || osmMarkets.isLoading || (needsGoogleFallback && googleMarkets.isLoading);
+  const error = dbMarkets.error || osmMarkets.error || googleMarkets.error;
 
   // Apply diet filters to OSM markets client-side
   let filteredOsmMarkets = osmMarkets.data || [];
@@ -206,15 +289,22 @@ export function useCombinedMarkets(
     });
   }
 
-  // Merge and deduplicate by proximity
-  const markets = mergeMarkets(dbMarkets.data || [], filteredOsmMarkets);
+  // Merge OSM with Google fallback results
+  const combinedNearbyMarkets = mergeMarkets(filteredOsmMarkets, googleMarkets.data || []);
+
+  // Merge DB markets with combined nearby results
+  const markets = mergeMarkets(dbMarkets.data || [], combinedNearbyMarkets);
 
   return {
     data: markets,
     isLoading,
     error,
     refetch: async () => {
-      await Promise.all([dbMarkets.refetch(), osmMarkets.refetch()]);
+      await Promise.all([
+        dbMarkets.refetch(), 
+        osmMarkets.refetch(),
+        needsGoogleFallback ? googleMarkets.refetch() : Promise.resolve(),
+      ]);
     },
   };
 }
