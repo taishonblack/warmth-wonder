@@ -319,14 +319,13 @@ export default function Home() {
 
       {/* Content */}
       <div className={isMobile ? "px-4 py-4 space-y-6" : "space-y-6"}>
-        {/* Category Filters */}
+        {/* All Filters - Single Row */}
         <section className={isMobile ? "-mx-4 px-4" : ""}>
-          <CategoryFilterBar filters={categoryFilters} onChange={setCategoryFilters} />
-        </section>
-        
-        {/* Diet Filters */}
-        <section className={isMobile ? "-mx-4 px-4" : ""}>
-          <DietFilterBar filters={dietFilters} onChange={setDietFilters} />
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+            <CategoryFilterBar filters={categoryFilters} onChange={setCategoryFilters} />
+            <div className="w-px bg-border shrink-0" />
+            <DietFilterBar filters={dietFilters} onChange={setDietFilters} />
+          </div>
         </section>
 
         {/* Loading State */}
