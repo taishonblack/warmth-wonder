@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Home from "./pages/Home";
 import Finds from "./pages/Finds";
 import MapPage from "./pages/MapPage";
+import Favorites from "./pages/Favorites";
 import Forum from "./pages/Forum";
 import Profile from "./pages/Profile";
 import UserProfile from "./pages/UserProfile";
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/" element={<Home />} />
             <Route path="/finds" element={<Finds />} />
             <Route path="/map" element={<MapPage />} />
+            <Route path="/favorites" element={<Favorites />} />
             <Route path="/forum" element={<Forum />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/u/:userId" element={<UserProfile />} />
