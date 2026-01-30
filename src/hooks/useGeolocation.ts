@@ -86,8 +86,11 @@ export function useGeolocation(): UseGeolocationReturn {
     };
   });
 
-  const fetchGpsLocation = useCallback((isAutoPrompt: boolean = false) => {
+  const fetchGpsLocation = useCallback((isAutoPrompt: boolean = false, retryWithLowAccuracy: boolean = false) => {
+    console.log("[Geolocation] Starting location fetch, isAutoPrompt:", isAutoPrompt, "retryWithLowAccuracy:", retryWithLowAccuracy);
+    
     if (!navigator.geolocation) {
+      console.error("[Geolocation] Geolocation not supported");
       setState((prev) => ({
         ...prev,
         error: "Geolocation is not supported by your browser",
@@ -101,6 +104,7 @@ export function useGeolocation(): UseGeolocationReturn {
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
     const successHandler = (position: GeolocationPosition) => {
+      console.log("[Geolocation] Success! Coords:", position.coords.latitude, position.coords.longitude);
       const newState = {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
@@ -121,19 +125,28 @@ export function useGeolocation(): UseGeolocationReturn {
     };
 
     const errorHandler = (error: GeolocationPositionError) => {
+      console.error("[Geolocation] Error:", error.code, error.message);
+      
+      // If high accuracy failed, retry with low accuracy (better for mobile)
+      if (!retryWithLowAccuracy && error.code === error.TIMEOUT) {
+        console.log("[Geolocation] Retrying with low accuracy...");
+        fetchGpsLocation(isAutoPrompt, true);
+        return;
+      }
+      
       let errorMessage: string | null = null;
       
       // Only show error if this was a manual request, not auto-prompt
       if (!isAutoPrompt) {
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = "Location permission denied";
+            errorMessage = "Location permission denied. Please enable in browser settings.";
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMessage = "Location information unavailable";
+            errorMessage = "Location unavailable. Please try again.";
             break;
           case error.TIMEOUT:
-            errorMessage = "Location request timed out";
+            errorMessage = "Location request timed out. Please try again.";
             break;
         }
       }
@@ -148,11 +161,15 @@ export function useGeolocation(): UseGeolocationReturn {
       localStorage.setItem(GPS_PROMPTED_KEY, "true");
     };
 
-    navigator.geolocation.getCurrentPosition(successHandler, errorHandler, {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 300000, // Cache position for 5 minutes
-    });
+    // Use longer timeout for mobile devices, lower accuracy on retry for better mobile support
+    const options: PositionOptions = {
+      enableHighAccuracy: !retryWithLowAccuracy,
+      timeout: retryWithLowAccuracy ? 30000 : 15000, // Longer timeout for mobile
+      maximumAge: 60000, // Accept cached position up to 1 minute old
+    };
+    
+    console.log("[Geolocation] Requesting position with options:", options);
+    navigator.geolocation.getCurrentPosition(successHandler, errorHandler, options);
   }, []);
 
   // Auto-prompt for GPS on first visit (if no stored location)
