@@ -93,21 +93,16 @@ export default function MapPage() {
           markets={markets}
           onMarketSelect={handleMarketSelect}
         />
-        {/* Category Filters */}
-        <CategoryFilterBar 
-          filters={categoryFilters} 
-          onChange={setCategoryFilters}
-          className="bg-card/90 backdrop-blur-sm rounded-xl p-2"
-        />
+        {/* All Filters - Single Row */}
         <div className="flex items-center gap-2">
-          <div className="flex-1">
-            <DietFilterBar 
-              filters={dietFilters} 
-              onChange={setDietFilters}
-              className="bg-card/90 backdrop-blur-sm rounded-xl p-2"
-            />
+          <div className="flex-1 overflow-x-auto scrollbar-hide">
+            <div className="flex gap-2 bg-card/90 backdrop-blur-sm rounded-xl p-2">
+              <CategoryFilterBar filters={categoryFilters} onChange={setCategoryFilters} />
+              <div className="w-px bg-border shrink-0" />
+              <DietFilterBar filters={dietFilters} onChange={setDietFilters} />
+            </div>
           </div>
-          <div className="bg-card/90 backdrop-blur-sm rounded-xl p-1">
+          <div className="bg-card/90 backdrop-blur-sm rounded-xl p-1 shrink-0">
             <RadiusSelector
               value={radius}
               onChange={(r: ProximityRadius) => setRadius(r)}
