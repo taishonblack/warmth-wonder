@@ -9,21 +9,39 @@ interface UseMarketPhotoResult {
   isLoading: boolean;
 }
 
+// Build Google Places photo URL from photo_reference
+function buildGooglePhotoUrl(photoReference: string): string {
+  const apiKey = import.meta.env.VITE_GOOGLE_PLACES_API_KEY;
+  if (apiKey) {
+    return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoReference}&key=${apiKey}`;
+  }
+  // Fallback: use edge function proxy
+  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/market-photo-proxy?ref=${photoReference}`;
+}
+
 export function useMarketPhoto(
   marketId: string | undefined,
   name: string | undefined,
   address?: string,
   lat?: number,
   lng?: number,
-  existingPhotoUrl?: string | null
+  existingPhotoUrl?: string | null,
+  photoReference?: string | null
 ): UseMarketPhotoResult {
   const [photoUrl, setPhotoUrl] = useState<string>(existingPhotoUrl || market1);
-  const [isLoading, setIsLoading] = useState(!existingPhotoUrl);
+  const [isLoading, setIsLoading] = useState(!existingPhotoUrl && !photoReference);
 
   useEffect(() => {
     // If we already have a photo URL from the database, use it
     if (existingPhotoUrl) {
       setPhotoUrl(existingPhotoUrl);
+      setIsLoading(false);
+      return;
+    }
+
+    // If we have a photo_reference (from Google), build the URL directly
+    if (photoReference) {
+      setPhotoUrl(buildGooglePhotoUrl(photoReference));
       setIsLoading(false);
       return;
     }
@@ -74,7 +92,7 @@ export function useMarketPhoto(
     return () => {
       cancelled = true;
     };
-  }, [marketId, name, address, lat, lng, existingPhotoUrl]);
+  }, [marketId, name, address, lat, lng, existingPhotoUrl, photoReference]);
 
   return { photoUrl, isLoading };
 }
@@ -88,6 +106,7 @@ export function useMarketPhotos(
     lat?: number;
     lng?: number;
     photo_url?: string | null;
+    photo_reference?: string | null;
   }>
 ): Map<string, string> {
   const [photoMap, setPhotoMap] = useState<Map<string, string>>(new Map());
@@ -103,6 +122,11 @@ export function useMarketPhotos(
         // Use cached photo if available
         if (m.photo_url) {
           newMap.set(m.id, m.photo_url);
+          return false;
+        }
+        // Use photo_reference if available (Google markets)
+        if (m.photo_reference) {
+          newMap.set(m.id, buildGooglePhotoUrl(m.photo_reference));
           return false;
         }
         // Only fetch for valid UUIDs (database markets)

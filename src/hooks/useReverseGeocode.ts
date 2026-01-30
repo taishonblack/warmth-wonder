@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 interface LocationInfo {
   neighborhood?: string;
@@ -28,12 +27,6 @@ export function useReverseGeocode(
       
       try {
         // Use edge function to proxy geocoding requests (avoids CORS)
-        const { data, error } = await supabase.functions.invoke('geocode', {
-          body: null,
-          headers: {},
-        });
-
-        // Build URL with query params for GET-like request via invoke
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/geocode?type=reverse&lat=${latitude}&lon=${longitude}`,
           {
