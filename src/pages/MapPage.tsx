@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { MapBottomSheet } from "@/components/MapBottomSheet";
 import { MapSidePanel } from "@/components/MapSidePanel";
 import { MapLegend } from "@/components/MapLegend";
@@ -9,14 +9,14 @@ import { CategoryFilterBar, CategoryFilters } from "@/components/CategoryFilterB
 import { ClaimMarketModal } from "@/components/ClaimMarketModal";
 import { LocationControl } from "@/components/LocationControl";
 import { useGeolocation } from "@/hooks/useGeolocation";
-import { useCombinedMarkets, Market } from "@/hooks/useMarkets";
+import { useMapViewportMarkets, MapBounds } from "@/hooks/useMapViewportMarkets";
+import { Market } from "@/hooks/useMarkets";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Loader2, MapPin } from "lucide-react";
 
 export default function MapPage() {
   const [selectedMarket, setSelectedMarket] = useState<string | null>(null);
   const [showDirections, setShowDirections] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [claimingMarket, setClaimingMarket] = useState<Market | null>(null);
   const [dietFilters, setDietFilters] = useState<DietFilters>({
     organic: false,
@@ -42,16 +42,21 @@ export default function MapPage() {
   } = useGeolocation();
   const isMobile = useIsMobile();
   
-  // Fixed 25-mile radius for map - user can pan/zoom to see further
-  const FETCH_RADIUS_METERS = 25 * 1609;
-  
+  // Use viewport-driven market fetching
   const { 
-    data: markets = [], 
+    markets, 
     isLoading: marketsLoading,
+    isSearching,
+    updateBounds,
     refetch,
-  } = useCombinedMarkets(latitude, longitude, searchQuery, FETCH_RADIUS_METERS, dietFilters, categoryFilters);
+  } = useMapViewportMarkets(null, dietFilters, categoryFilters);
 
   const userLocation = latitude && longitude ? { lat: latitude, lng: longitude } : null;
+
+  // Handle bounds change from map pan/zoom
+  const handleBoundsChange = useCallback((bounds: MapBounds) => {
+    updateBounds(bounds);
+  }, [updateBounds]);
 
   const handleMarketSelect = (id: string) => {
     setSelectedMarket(id);
@@ -80,7 +85,8 @@ export default function MapPage() {
     refreshLocation();
   };
 
-  if (marketsLoading && markets.length === 0) {
+  // Show loading only on initial load when we have no markets yet
+  if (marketsLoading && markets.length === 0 && !userLocation) {
     return (
       <div className="h-screen bg-muted flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
@@ -147,6 +153,8 @@ export default function MapPage() {
         onMarketSelect={handleMarketSelect}
         userLocation={userLocation}
         showDirections={showDirections}
+        onBoundsChange={handleBoundsChange}
+        isSearching={isSearching}
       />
 
       {/* Legend */}
