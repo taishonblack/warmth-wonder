@@ -10,13 +10,9 @@ interface UseMarketPhotoResult {
 }
 
 // Build Google Places photo URL from photo_reference
+// Always use edge function proxy since the API key is server-side only
 function buildGooglePhotoUrl(photoReference: string): string {
-  const apiKey = import.meta.env.VITE_GOOGLE_PLACES_API_KEY;
-  if (apiKey) {
-    return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoReference}&key=${apiKey}`;
-  }
-  // Fallback: use edge function proxy
-  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/market-photo-proxy?ref=${photoReference}`;
+  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/market-photo-proxy?ref=${encodeURIComponent(photoReference)}`;
 }
 
 export function useMarketPhoto(
