@@ -96,26 +96,55 @@ export function LocationControl({
   };
 
   const handleUseGps = () => {
-    // Trigger browser geolocation permission prompt
-    if (navigator.geolocation) {
+    console.log("[LocationControl] User clicked Use GPS");
+    setError(null);
+    
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported by your browser");
+      return;
+    }
+
+    // Show loading state while getting location
+    setIsGeocoding(true);
+    
+    const tryGetLocation = (highAccuracy: boolean) => {
+      console.log("[LocationControl] Requesting location, highAccuracy:", highAccuracy);
+      
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          console.log("[LocationControl] Success:", position.coords.latitude, position.coords.longitude);
           onLocationChange(position.coords.latitude, position.coords.longitude, "gps");
+          setIsGeocoding(false);
           setIsOpen(false);
         },
         (error) => {
-          console.error("Geolocation error:", error);
-          setError(
-            error.code === error.PERMISSION_DENIED
-              ? "Location permission denied. Please enable in browser settings."
-              : "Unable to get your location. Please try again."
-          );
+          console.error("[LocationControl] Geolocation error:", error.code, error.message);
+          
+          // If high accuracy failed with timeout, retry with low accuracy
+          if (highAccuracy && error.code === error.TIMEOUT) {
+            console.log("[LocationControl] Retrying with low accuracy...");
+            tryGetLocation(false);
+            return;
+          }
+          
+          setIsGeocoding(false);
+          if (error.code === error.PERMISSION_DENIED) {
+            setError("Location permission denied. Please enable in browser settings.");
+          } else if (error.code === error.TIMEOUT) {
+            setError("Location request timed out. Please try again or enter a zip code.");
+          } else {
+            setError("Unable to get your location. Please try again or enter a zip code.");
+          }
         },
-        { enableHighAccuracy: true, timeout: 10000 }
+        { 
+          enableHighAccuracy: highAccuracy, 
+          timeout: highAccuracy ? 15000 : 30000,
+          maximumAge: 60000
+        }
       );
-    } else {
-      setError("Geolocation is not supported by your browser");
-    }
+    };
+    
+    tryGetLocation(true);
   };
 
   return (
