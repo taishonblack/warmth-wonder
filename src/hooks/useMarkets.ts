@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 // Database market type
@@ -270,30 +271,91 @@ export function useCombinedMarkets(
   const dbMarkets = useMarkets(searchQuery, dietFilters);
   const osmMarkets = useNearbyMarkets(lat, lng, radius);
   
-  // Enable Google fallback if OSM returns fewer than 6 results
-  const osmCount = osmMarkets.data?.length || 0;
-  const needsGoogleFallback = !osmMarkets.isLoading && osmCount < 6;
-  const googleMarkets = useNearbyGooglePlaces(lat, lng, radius, needsGoogleFallback);
+  // Track if we should enable Google fallback - using state to avoid dynamic enabled changes
+  const [googleFallbackEnabled, setGoogleFallbackEnabled] = useState(false);
+  
+  // Update fallback state only when OSM query completes
+  useEffect(() => {
+    if (!osmMarkets.isLoading && osmMarkets.data !== undefined) {
+      const needsFallback = (osmMarkets.data?.length || 0) < 6;
+      setGoogleFallbackEnabled(needsFallback);
+    }
+  }, [osmMarkets.isLoading, osmMarkets.data]);
+  
+  // Always call the hook but control via stable enabled state
+  const googleMarkets = useQuery({
+    queryKey: ["nearby-google-places", lat?.toFixed(2), lng?.toFixed(2), radius],
+    queryFn: async (): Promise<Market[]> => {
+      if (!lat || !lng) return [];
 
-  const isLoading = dbMarkets.isLoading || osmMarkets.isLoading || (needsGoogleFallback && googleMarkets.isLoading);
+      const { data, error } = await supabase.functions.invoke<GooglePlacesResponse>(
+        "nearby-google-places",
+        {
+          body: { lat, lng, radius },
+        }
+      );
+
+      if (error) {
+        console.error("Error fetching Google Places markets:", error);
+        throw error;
+      }
+
+      if (!data?.markets) return [];
+
+      // Convert Google markets to our Market type
+      return data.markets.map((m): Market => ({
+        id: m.place_id,
+        name: m.name,
+        description: null,
+        address: m.address,
+        city: "",
+        state: "",
+        zip_code: null,
+        lat: m.lat,
+        lng: m.lng,
+        type: mapGoogleTypesToType(m.types),
+        is_open: m.open_now ?? true,
+        hours: null,
+        website: null,
+        phone: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        source: "osm",
+        photo_reference: m.photo_ref,
+      }));
+    },
+    enabled: googleFallbackEnabled && lat !== null && lng !== null,
+    staleTime: 1000 * 60 * 10,
+  });
+
+  const isLoading = dbMarkets.isLoading || osmMarkets.isLoading || (googleFallbackEnabled && googleMarkets.isLoading);
   const error = dbMarkets.error || osmMarkets.error || googleMarkets.error;
 
   // Apply diet filters to OSM markets client-side
-  let filteredOsmMarkets = osmMarkets.data || [];
-  if (dietFilters) {
-    filteredOsmMarkets = filteredOsmMarkets.filter((m) => {
-      if (dietFilters.organic && !m.organic) return false;
-      if (dietFilters.veganFriendly && !m.vegan_friendly) return false;
-      if (dietFilters.glutenFree && !m.gluten_free) return false;
-      return true;
-    });
-  }
+  const filteredOsmMarkets = useMemo(() => {
+    let markets = osmMarkets.data || [];
+    if (dietFilters) {
+      markets = markets.filter((m) => {
+        if (dietFilters.organic && !m.organic) return false;
+        if (dietFilters.veganFriendly && !m.vegan_friendly) return false;
+        if (dietFilters.glutenFree && !m.gluten_free) return false;
+        return true;
+      });
+    }
+    return markets;
+  }, [osmMarkets.data, dietFilters]);
 
   // Merge OSM with Google fallback results
-  const combinedNearbyMarkets = mergeMarkets(filteredOsmMarkets, googleMarkets.data || []);
+  const combinedNearbyMarkets = useMemo(() => 
+    mergeMarkets(filteredOsmMarkets, googleMarkets.data || []),
+    [filteredOsmMarkets, googleMarkets.data]
+  );
 
   // Merge DB markets with combined nearby results
-  const markets = mergeMarkets(dbMarkets.data || [], combinedNearbyMarkets);
+  const markets = useMemo(() => 
+    mergeMarkets(dbMarkets.data || [], combinedNearbyMarkets),
+    [dbMarkets.data, combinedNearbyMarkets]
+  );
 
   return {
     data: markets,
@@ -303,7 +365,7 @@ export function useCombinedMarkets(
       await Promise.all([
         dbMarkets.refetch(), 
         osmMarkets.refetch(),
-        needsGoogleFallback ? googleMarkets.refetch() : Promise.resolve(),
+        googleFallbackEnabled ? googleMarkets.refetch() : Promise.resolve(),
       ]);
     },
   };
