@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { MapBottomSheet } from "@/components/MapBottomSheet";
 import { MapSidePanel } from "@/components/MapSidePanel";
 import { MapLegend } from "@/components/MapLegend";
@@ -8,13 +9,15 @@ import { DietFilterBar, DietFilters } from "@/components/DietFilterBar";
 import { CategoryFilterBar, CategoryFilters } from "@/components/CategoryFilterBar";
 import { ClaimMarketModal } from "@/components/ClaimMarketModal";
 import { RadiusSelector } from "@/components/RadiusSelector";
-import { useGeolocation } from "@/hooks/useGeolocation";
+import { useLocation } from "@/contexts/LocationContext";
 import { useProximitySettings, ProximityRadius } from "@/hooks/useProximitySettings";
 import { useCombinedMarkets, Market } from "@/hooks/useMarkets";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Loader2, MapPin } from "lucide-react";
 
 export default function MapPage() {
+  const navigate = useNavigate();
+  const { status, anchor } = useLocation();
   const [selectedMarket, setSelectedMarket] = useState<string | null>(null);
   const [showDirections, setShowDirections] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -31,17 +34,30 @@ export default function MapPage() {
     organic_grocery: false,
   });
   
-  const { latitude, longitude, loading: geoLoading, error: geoError } = useGeolocation();
   const { radius, setRadius } = useProximitySettings();
   const isMobile = useIsMobile();
+
+  // Redirect to landing if no location
+  useEffect(() => {
+    if (status === "unknown") {
+      navigate("/");
+    }
+  }, [status, navigate]);
   
   const { 
     data: markets = [], 
     isLoading: marketsLoading,
     refetch,
-  } = useCombinedMarkets(latitude, longitude, searchQuery, radius * 1609, dietFilters, categoryFilters);
+  } = useCombinedMarkets(
+    anchor?.lat ?? null, 
+    anchor?.lng ?? null, 
+    searchQuery, 
+    radius * 1609, 
+    dietFilters, 
+    categoryFilters
+  );
 
-  const userLocation = latitude && longitude ? { lat: latitude, lng: longitude } : null;
+  const userLocation = anchor ? { lat: anchor.lat, lng: anchor.lng } : null;
 
   const handleMarketSelect = (id: string) => {
     setSelectedMarket(id);
@@ -61,6 +77,17 @@ export default function MapPage() {
     setClaimingMarket(null);
     refetch();
   };
+
+  if (status === "unknown" || status === "resolving") {
+    return (
+      <div className="h-screen bg-muted flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Finding your location...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (marketsLoading && markets.length === 0) {
     return (
@@ -111,11 +138,15 @@ export default function MapPage() {
         </div>
       </div>
 
-      {/* Location Error Banner */}
-      {geoError && (
-        <div className="absolute top-32 left-4 right-4 z-20 bg-secondary/90 text-secondary-foreground px-4 py-2 rounded-xl flex items-center gap-2 text-sm md:left-auto md:right-4 md:w-80 lg:w-96">
-          <MapPin className="w-4 h-4" />
-          <span>Location unavailable. Showing NYC markets.</span>
+      {/* Location indicator */}
+      {anchor && (
+        <div className="absolute top-32 left-4 z-20 bg-card/90 backdrop-blur-sm text-foreground px-3 py-1.5 rounded-xl flex items-center gap-2 text-sm md:left-auto md:right-4">
+          <MapPin className="w-4 h-4 text-primary" />
+          <span className="font-medium">
+            {anchor.source === "zip" && anchor.zipCode
+              ? anchor.zipCode
+              : "Current location"}
+          </span>
         </div>
       )}
 
