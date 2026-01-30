@@ -21,7 +21,7 @@ interface GeolocationState {
 
 interface UseGeolocationReturn extends GeolocationState {
   refreshLocation: () => void;
-  setManualLocation: (lat: number, lng: number, source?: "zip" | "manual", zipCode?: string) => void;
+  setManualLocation: (lat: number, lng: number, source?: "zip" | "manual" | "gps", zipCode?: string) => void;
   clearManualLocation: () => void;
 }
 
@@ -52,6 +52,11 @@ function loadStoredLocation(): StoredLocation | null {
   return null;
 }
 
+// Default location: 07016 (Cranford, NJ)
+const DEFAULT_ZIP = "07016";
+const DEFAULT_LAT = 40.6584;
+const DEFAULT_LNG = -74.2995;
+
 export function useGeolocation(): UseGeolocationReturn {
   const [state, setState] = useState<GeolocationState>(() => {
     // Try to restore from localStorage on init
@@ -66,12 +71,14 @@ export function useGeolocation(): UseGeolocationReturn {
         zipCode: stored.zipCode,
       };
     }
+    // Default to 07016 zip code
     return {
-      latitude: null,
-      longitude: null,
+      latitude: DEFAULT_LAT,
+      longitude: DEFAULT_LNG,
       error: null,
-      loading: true,
-      source: null,
+      loading: false,
+      source: "zip",
+      zipCode: DEFAULT_ZIP,
     };
   });
 
@@ -132,16 +139,10 @@ export function useGeolocation(): UseGeolocationReturn {
     });
   }, []);
 
-  useEffect(() => {
-    // Only fetch GPS if we don't have a stored location
-    const stored = loadStoredLocation();
-    if (!stored) {
-      fetchGpsLocation();
-    }
-  }, []);
+  // No auto GPS fetch on load - we default to 07016 and user can tap "Use my location"
 
   const setManualLocation = useCallback(
-    (lat: number, lng: number, source: "zip" | "manual" = "manual", zipCode?: string) => {
+    (lat: number, lng: number, source: "zip" | "manual" | "gps" = "manual", zipCode?: string) => {
       const newState = {
         latitude: lat,
         longitude: lng,
@@ -154,7 +155,7 @@ export function useGeolocation(): UseGeolocationReturn {
       saveLocation({
         latitude: lat,
         longitude: lng,
-        source,
+        source: source === "gps" ? "gps" : source,
         zipCode,
         timestamp: Date.now(),
       });

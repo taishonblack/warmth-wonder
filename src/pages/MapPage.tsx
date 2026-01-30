@@ -7,9 +7,8 @@ import { MapSearchBar } from "@/components/MapSearchBar";
 import { DietFilterBar, DietFilters } from "@/components/DietFilterBar";
 import { CategoryFilterBar, CategoryFilters } from "@/components/CategoryFilterBar";
 import { ClaimMarketModal } from "@/components/ClaimMarketModal";
-import { RadiusSelector } from "@/components/RadiusSelector";
+import { LocationControl } from "@/components/LocationControl";
 import { useGeolocation } from "@/hooks/useGeolocation";
-import { useProximitySettings, ProximityRadius } from "@/hooks/useProximitySettings";
 import { useCombinedMarkets, Market } from "@/hooks/useMarkets";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Loader2, MapPin } from "lucide-react";
@@ -31,15 +30,26 @@ export default function MapPage() {
     organic_grocery: false,
   });
   
-  const { latitude, longitude, loading: geoLoading, error: geoError } = useGeolocation();
-  const { radius, setRadius } = useProximitySettings();
+  const { 
+    latitude, 
+    longitude, 
+    loading: geoLoading, 
+    error: geoError,
+    source: locationSource,
+    zipCode: activeZipCode,
+    setManualLocation,
+    refreshLocation,
+  } = useGeolocation();
   const isMobile = useIsMobile();
+  
+  // Fixed 25-mile radius for map - user can pan/zoom to see further
+  const FETCH_RADIUS_METERS = 25 * 1609;
   
   const { 
     data: markets = [], 
     isLoading: marketsLoading,
     refetch,
-  } = useCombinedMarkets(latitude, longitude, searchQuery, radius * 1609, dietFilters, categoryFilters);
+  } = useCombinedMarkets(latitude, longitude, searchQuery, FETCH_RADIUS_METERS, dietFilters, categoryFilters);
 
   const userLocation = latitude && longitude ? { lat: latitude, lng: longitude } : null;
 
@@ -60,6 +70,14 @@ export default function MapPage() {
   const handleMarketClaimed = () => {
     setClaimingMarket(null);
     refetch();
+  };
+
+  const handleLocationChange = (lat: number, lng: number, source: "zip" | "gps", zipCode?: string) => {
+    setManualLocation(lat, lng, source, zipCode);
+  };
+
+  const handleUseGps = () => {
+    refreshLocation();
   };
 
   if (marketsLoading && markets.length === 0) {
@@ -103,9 +121,12 @@ export default function MapPage() {
             </div>
           </div>
           <div className="bg-card/90 backdrop-blur-sm rounded-xl p-1 shrink-0">
-            <RadiusSelector
-              value={radius}
-              onChange={(r: ProximityRadius) => setRadius(r)}
+            <LocationControl
+              onLocationChange={handleLocationChange}
+              onUseGps={handleUseGps}
+              isLoading={geoLoading}
+              currentSource={locationSource}
+              savedZipCode={activeZipCode}
             />
           </div>
         </div>
@@ -115,7 +136,7 @@ export default function MapPage() {
       {geoError && (
         <div className="absolute top-32 left-4 right-4 z-20 bg-secondary/90 text-secondary-foreground px-4 py-2 rounded-xl flex items-center gap-2 text-sm md:left-auto md:right-4 md:w-80 lg:w-96">
           <MapPin className="w-4 h-4" />
-          <span>Location unavailable. Showing NYC markets.</span>
+          <span>Using default location (07016). Tap the location icon to change.</span>
         </div>
       )}
 

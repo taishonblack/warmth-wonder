@@ -92,8 +92,26 @@ export function LocationControl({
   };
 
   const handleUseGps = () => {
-    onUseGps();
-    setIsOpen(false);
+    // Trigger browser geolocation permission prompt
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          onLocationChange(position.coords.latitude, position.coords.longitude, "gps");
+          setIsOpen(false);
+        },
+        (error) => {
+          console.error("Geolocation error:", error);
+          setError(
+            error.code === error.PERMISSION_DENIED
+              ? "Location permission denied. Please enable in browser settings."
+              : "Unable to get your location. Please try again."
+          );
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    } else {
+      setError("Geolocation is not supported by your browser");
+    }
   };
 
   return (
