@@ -16,6 +16,7 @@ interface LocationControlProps {
   isLoading?: boolean;
   currentSource?: "gps" | "zip" | "manual" | null;
   savedZipCode?: string | null;
+  currentZipCode?: string;
   className?: string;
 }
 
@@ -26,6 +27,7 @@ export function LocationControl({
   isLoading = false,
   currentSource,
   savedZipCode,
+  currentZipCode,
   className,
 }: LocationControlProps) {
   const [zipCode, setZipCode] = useState("");
@@ -33,12 +35,14 @@ export function LocationControl({
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Pre-fill with saved zip code if available
+  // Pre-fill with current or saved zip code
   useEffect(() => {
-    if (savedZipCode && !zipCode) {
+    if (currentZipCode && !zipCode) {
+      setZipCode(currentZipCode);
+    } else if (savedZipCode && !zipCode) {
       setZipCode(savedZipCode);
     }
-  }, [savedZipCode]);
+  }, [savedZipCode, currentZipCode]);
 
   const handleZipSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

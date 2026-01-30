@@ -369,6 +369,7 @@ export default function Home() {
                   isLoading={geoLoading}
                   currentSource={locationSource}
                   savedZipCode={profile?.zip_code}
+                  currentZipCode={activeZipCode}
                 />
               </div>
             }
