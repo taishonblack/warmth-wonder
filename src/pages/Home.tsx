@@ -13,8 +13,6 @@ import { CategoryFilterBar, CategoryFilters } from "@/components/CategoryFilterB
 import { ClaimMarketModal } from "@/components/ClaimMarketModal";
 import { LocationControl } from "@/components/LocationControl";
 import { useGeolocation } from "@/hooks/useGeolocation";
-import { useProximitySettings, ProximityRadius } from "@/hooks/useProximitySettings";
-import { RadiusSelector } from "@/components/RadiusSelector";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCombinedMarkets, calculateDistance, Market } from "@/hooks/useMarkets";
 import { useFinds } from "@/hooks/useFinds";
@@ -135,7 +133,6 @@ export default function Home() {
     setManualLocation,
     refreshLocation,
   } = useGeolocation();
-  const { radius, setRadius } = useProximitySettings();
   const isMobile = useIsMobile();
   const { location: locationInfo, isLoading: locationLoading } = useReverseGeocode(latitude, longitude);
 
@@ -168,9 +165,7 @@ export default function Home() {
   }, [profile?.zip_code]);
 
   const handleLocationChange = (lat: number, lng: number, source: "zip" | "gps", zipCode?: string) => {
-    if (source === "zip") {
-      setManualLocation(lat, lng, "zip", zipCode);
-    }
+    setManualLocation(lat, lng, source, zipCode);
   };
 
   const handleSaveZipCode = async (zipCode: string) => {
@@ -182,13 +177,15 @@ export default function Home() {
   const handleUseGps = () => {
     refreshLocation();
   };
+  // Fixed radius: 25 miles to fetch enough data for both Near (≤5mi) and Further (>5mi)
+  const FETCH_RADIUS_METERS = 25 * 1609;
   
   // Fetch real market data
   const { data: markets = [], isLoading: marketsLoading } = useCombinedMarkets(
     latitude,
     longitude,
     undefined,
-    radius * 1609, // Convert miles to meters
+    FETCH_RADIUS_METERS,
     dietFilters,
     categoryFilters
   );
@@ -209,7 +206,7 @@ export default function Home() {
     }))
   );
   
-  // Split markets into nearby and further out with photos
+  // Split markets: Near you (≤5 miles), Further (>5 miles)
   const { nearbyMarkets, furtherOutMarkets } = useMemo(() => {
     if (!latitude || !longitude) {
       return { 
@@ -231,20 +228,16 @@ export default function Home() {
     
     // Debug logging for filtered markets
     if (debugMode) {
-      const filteredOut = sorted.filter((m) => m.distanceMiles > radius);
-      if (filteredOut.length > 0) {
-        console.log(`[DEBUG] Markets filtered out (>${radius}mi):`, 
-          filteredOut.slice(0, 10).map(m => `${m.name} (${m.distanceMiles.toFixed(1)}mi)`)
-        );
-      }
-      console.log(`[DEBUG] Total markets: ${sorted.length}, Within ${radius}mi: ${sorted.filter(m => m.distanceMiles <= radius).length}`);
+      console.log(`[DEBUG] Total markets: ${sorted.length}`);
+      console.log(`[DEBUG] Near you (≤5mi): ${sorted.filter(m => m.distanceMiles <= 5).length}`);
+      console.log(`[DEBUG] Further (>5mi): ${sorted.filter(m => m.distanceMiles > 5).length}`);
     }
     
     return {
       nearbyMarkets: sorted.filter((m) => m.distanceMiles <= 5).slice(0, 15),
-      furtherOutMarkets: sorted.filter((m) => m.distanceMiles > 5 && m.distanceMiles <= radius).slice(0, 15),
+      furtherOutMarkets: sorted.filter((m) => m.distanceMiles > 5).slice(0, 15),
     };
-  }, [markets, latitude, longitude, radius, photoMap, debugMode]);
+  }, [markets, latitude, longitude, photoMap, debugMode]);
   
   // Use real finds or fallback to mocks
   const displayFinds = finds.length > 0 
@@ -324,7 +317,7 @@ export default function Home() {
               ) : (
                 <>
                   <MapPin className="w-4 h-4 text-secondary" />
-                  <span className="text-xs">Within {radius} mi</span>
+                  <span className="text-xs">Your area</span>
                 </>
               )}
             </div>
@@ -369,10 +362,6 @@ export default function Home() {
                       : "📍 Manual"}
                   </span>
                 )}
-                <RadiusSelector
-                  value={radius}
-                  onChange={(r: ProximityRadius) => setRadius(r)}
-                />
                 <LocationControl
                   onLocationChange={handleLocationChange}
                   onUseGps={handleUseGps}
@@ -393,7 +382,7 @@ export default function Home() {
             />
           ) : (
             <p className="text-muted-foreground text-sm">
-              No markets found nearby. Try expanding your search radius in settings.
+              No markets found within 5 miles. Check the "Further" section below or adjust your location.
             </p>
           )}
         </section>
