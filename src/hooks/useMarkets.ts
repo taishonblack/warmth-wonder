@@ -36,6 +36,8 @@ export interface Market {
   source?: "db" | "osm";
   confidence?: number;
   category?: string;
+  // Computed distance for "Near you" sorting
+  distance_m?: number;
 }
 
 export interface DietFilters {
@@ -88,6 +90,7 @@ interface GoogleMarket {
   open_now: boolean | null;
   photo_ref: string | null;
   types: string[];
+  distance_m: number;
 }
 
 interface NearbyMarketsResponse {
@@ -106,6 +109,25 @@ interface GooglePlacesResponse {
 
 // Default radius: ~15 miles for better suburban coverage
 const DEFAULT_RADIUS_METERS = 24140;
+
+// Haversine distance calculation
+function toRad(d: number) {
+  return (d * Math.PI) / 180;
+}
+
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371e3; // Earth radius in meters
+  const φ1 = toRad(lat1);
+  const φ2 = toRad(lat2);
+  const Δφ = toRad(lat2 - lat1);
+  const Δλ = toRad(lng2 - lng1);
+
+  const a =
+    Math.sin(Δφ / 2) ** 2 +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
 
 // Fetch markets from database
 export function useMarkets(searchQuery?: string, dietFilters?: DietFilters) {
@@ -371,15 +393,26 @@ export function useCombinedMarkets(
       }));
 
       // If OSM returns fewer than 6 results, fetch from Google Places as fallback
+      let allMarkets: Market[];
       if (osmMarkets.length < 6) {
         console.log(`[useCombinedMarkets] OSM returned ${osmMarkets.length} results, fetching Google Places fallback`);
         const googleMarkets = await fetchGooglePlacesMarkets(lat, lng, radius);
-        
-        // Merge and dedupe
-        return mergeMarkets(osmMarkets, googleMarkets);
+        allMarkets = mergeMarkets(osmMarkets, googleMarkets);
+      } else {
+        allMarkets = osmMarkets;
       }
 
-      return osmMarkets;
+      // Compute distances + sort by nearest
+      const MAX_DISTANCE = radius * 1.05;
+      const withDistance = allMarkets.map((m) => ({
+        ...m,
+        distance_m: haversineMeters(lat, lng, m.lat, m.lng),
+      }));
+
+      // Hard filter + sort by distance
+      return withDistance
+        .filter((m) => (m.distance_m ?? 0) <= MAX_DISTANCE)
+        .sort((a, b) => (a.distance_m ?? 0) - (b.distance_m ?? 0));
     },
     enabled: lat !== null && lng !== null,
     staleTime: 1000 * 60 * 10,

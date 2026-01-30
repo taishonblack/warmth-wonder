@@ -20,6 +20,24 @@ function isChain(name: string): boolean {
   return CHAIN_BLACKLIST.some((c) => normalized.includes(c));
 }
 
+function toRad(d: number) {
+  return (d * Math.PI) / 180;
+}
+
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371e3;
+  const φ1 = toRad(lat1);
+  const φ2 = toRad(lat2);
+  const Δφ = toRad(lat2 - lat1);
+  const Δλ = toRad(lng2 - lng1);
+
+  const a =
+    Math.sin(Δφ / 2) ** 2 +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
 interface GooglePlace {
   place_id: string;
   name: string;
@@ -49,6 +67,7 @@ interface NormalizedMarket {
   open_now: boolean | null;
   photo_ref: string | null;
   types: string[];
+  distance_m: number;
 }
 
 async function searchNearby(
@@ -145,22 +164,35 @@ Deno.serve(async (req) => {
 
     console.log(`[nearby-google-places] Found ${allPlaces.length} unique places before filtering`);
 
-    // Filter out chains and normalize
+    // Filter out chains, normalize, compute distance
+    const MAX_DISTANCE = radius * 1.05; // small buffer for centroid vs edges
+    
     const markets: NormalizedMarket[] = allPlaces
       .filter((p) => !isChain(p.name))
-      .map((p): NormalizedMarket => ({
-        source: "google",
-        place_id: p.place_id,
-        name: p.name,
-        lat: p.geometry.location.lat,
-        lng: p.geometry.location.lng,
-        address: p.vicinity || p.formatted_address || "Address unknown",
-        open_now: p.opening_hours?.open_now ?? null,
-        photo_ref: p.photos?.[0]?.photo_reference || null,
-        types: p.types || [],
-      }));
+      .map((p): NormalizedMarket => {
+        const mLat = p.geometry.location.lat;
+        const mLng = p.geometry.location.lng;
+        const distance_m = haversineMeters(lat, lng, mLat, mLng);
+        
+        return {
+          source: "google",
+          place_id: p.place_id,
+          name: p.name,
+          lat: mLat,
+          lng: mLng,
+          address: p.vicinity || p.formatted_address || "Address unknown",
+          open_now: p.opening_hours?.open_now ?? null,
+          photo_ref: p.photos?.[0]?.photo_reference || null,
+          types: p.types || [],
+          distance_m,
+        };
+      })
+      // HARD FILTER: prevent far results from leaking (e.g., NYC into NJ suburbs)
+      .filter((m) => m.distance_m <= MAX_DISTANCE)
+      // Sort by nearest
+      .sort((a, b) => a.distance_m - b.distance_m);
 
-    console.log(`[nearby-google-places] Returning ${markets.length} indie markets`);
+    console.log(`[nearby-google-places] Returning ${markets.length} indie markets (filtered by ${radius}m radius)`);
 
     const response = {
       center: { lat, lng },
