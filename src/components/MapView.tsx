@@ -2,8 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { Market } from "@/hooks/useMarkets";
-import { MapBounds } from "@/hooks/useMapViewportMarkets";
-import { Locate, Loader2 } from "lucide-react";
+import { Locate } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface MapViewProps {
@@ -12,15 +11,13 @@ interface MapViewProps {
   onMarketSelect: (id: string) => void;
   userLocation?: { lat: number; lng: number } | null;
   showDirections?: boolean;
-  onBoundsChange?: (bounds: MapBounds) => void;
-  isSearching?: boolean;
 }
 
 const pinColors: Record<string, string> = {
-  farmers: "#7C9A5E",
-  flea: "#D4A574",
-  artisan: "#C4A77D",
-  specialty: "#B8860B",
+  farmers: "#7C9A5E",   // primary green
+  flea: "#D4A574",      // secondary tan  
+  artisan: "#C4A77D",   // clay
+  specialty: "#B8860B", // accent gold
 };
 
 export function MapView({ 
@@ -28,9 +25,7 @@ export function MapView({
   selectedMarket, 
   onMarketSelect, 
   userLocation,
-  showDirections = false,
-  onBoundsChange,
-  isSearching = false,
+  showDirections = false 
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -38,23 +33,12 @@ export function MapView({
   const userMarker = useRef<mapboxgl.Marker | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
 
-  // Extract bounds from map
-  const getBounds = useCallback((): MapBounds | null => {
-    if (!map.current) return null;
-    const bounds = map.current.getBounds();
-    return {
-      north: bounds.getNorth(),
-      south: bounds.getSouth(),
-      east: bounds.getEast(),
-      west: bounds.getWest(),
-    };
-  }, []);
-
   // Initialize map
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
     const token = "pk.eyJ1IjoidGFpc2hvbmIiLCJhIjoiY21rdnRkMTFiMDk1ZTNjcHc0YzRoc3I2aiJ9.9D_Nrd1vBV64gLPWKg_Q8g";
+
     mapboxgl.accessToken = token;
 
     map.current = new mapboxgl.Map({
@@ -97,21 +81,6 @@ export function MapView({
             "line-opacity": 0.8,
           },
         });
-
-        // Emit initial bounds
-        const bounds = getBounds();
-        if (bounds && onBoundsChange) {
-          onBoundsChange(bounds);
-        }
-      }
-    });
-
-    // Listen for map movement (pan/zoom)
-    map.current.on("moveend", () => {
-      const bounds = getBounds();
-      if (bounds && onBoundsChange) {
-        console.log("[MapView] moveend - emitting new bounds");
-        onBoundsChange(bounds);
       }
     });
 
@@ -261,6 +230,7 @@ export function MapView({
         duration: 1000,
       });
 
+      // Show directions if user location available and showDirections is true
       if (showDirections && userLocation) {
         fetchDirections(
           [userLocation.lng, userLocation.lat],
@@ -283,14 +253,6 @@ export function MapView({
   return (
     <div className="absolute inset-0">
       <div ref={mapContainer} className="absolute inset-0" />
-      
-      {/* Searching indicator */}
-      {isSearching && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 bg-card/95 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin text-primary" />
-          <span className="text-sm font-medium">Searching this area...</span>
-        </div>
-      )}
       
       {/* Locate Me Button */}
       {userLocation && (
