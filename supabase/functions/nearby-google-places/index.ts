@@ -101,6 +101,38 @@ async function searchNearby(
   }
 }
 
+// Text search API for finding specific named places
+async function textSearch(
+  apiKey: string,
+  query: string,
+  lat: number,
+  lng: number,
+  radius: number
+): Promise<GooglePlace[]> {
+  const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
+  url.searchParams.set("query", query);
+  url.searchParams.set("location", `${lat},${lng}`);
+  url.searchParams.set("radius", radius.toString());
+  url.searchParams.set("key", apiKey);
+
+  try {
+    const res = await fetch(url.toString());
+    if (!res.ok) {
+      console.error(`[nearby-google-places] Text search API error for "${query}":`, res.status);
+      return [];
+    }
+    const data: GooglePlacesResponse = await res.json();
+    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+      console.error(`[nearby-google-places] Text search status for "${query}":`, data.status, data.error_message);
+      return [];
+    }
+    return data.results || [];
+  } catch (err) {
+    console.error(`[nearby-google-places] Text search fetch error for "${query}":`, err);
+    return [];
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -132,28 +164,54 @@ Deno.serve(async (req) => {
 
     console.log(`[nearby-google-places] Request for ${lat},${lng} radius=${radius}m`);
 
-    // Keywords to search - optimized for indie/local markets
+    // Keywords to search - optimized for indie/local markets and farm stands
     const keywords = [
       "farmers market",
       "farm stand",
+      "farm store",
+      "farm shop",
+      "produce farm",
       "produce market",
       "organic grocery",
       "health food store",
       "co-op grocery",
       "greengrocer",
       "bakery local",
+      "local farm",
     ];
 
-    // Run all searches in parallel
-    const allResults = await Promise.all(
+    // Text searches for specific well-known local farms that might not match generic keywords
+    const textQueries = [
+      "farm fresh produce",
+      "pick your own farm",
+    ];
+
+    // Run all keyword searches in parallel
+    const keywordResults = await Promise.all(
       keywords.map((kw) => searchNearby(apiKey, lat, lng, radius, kw))
+    );
+
+    // Run text searches in parallel
+    const textResults = await Promise.all(
+      textQueries.map((q) => textSearch(apiKey, q, lat, lng, radius))
     );
 
     // Flatten and dedupe by place_id
     const seenIds = new Set<string>();
     const allPlaces: GooglePlace[] = [];
 
-    for (const results of allResults) {
+    // Add keyword results
+    for (const results of keywordResults) {
+      for (const place of results) {
+        if (!seenIds.has(place.place_id)) {
+          seenIds.add(place.place_id);
+          allPlaces.push(place);
+        }
+      }
+    }
+
+    // Add text search results
+    for (const results of textResults) {
       for (const place of results) {
         if (!seenIds.has(place.place_id)) {
           seenIds.add(place.place_id);
