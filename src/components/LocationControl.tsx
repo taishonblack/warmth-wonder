@@ -74,7 +74,6 @@ export function LocationControl({
         const { lat, lon } = data[0];
         const trimmedZip = zipCode.trim();
         onLocationChange(parseFloat(lat), parseFloat(lon), "zip", trimmedZip);
-        
         // Save to profile if handler provided
         if (onSaveZipCode) {
           await onSaveZipCode(trimmedZip);

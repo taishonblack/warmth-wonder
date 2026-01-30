@@ -184,6 +184,7 @@ Deno.serve(async (req) => {
     const textQueries = [
       "farm fresh produce",
       "pick your own farm",
+      "dreyer farms cranford", // Well-known local farm stand
     ];
 
     // Run all keyword searches in parallel

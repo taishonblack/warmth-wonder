@@ -122,12 +122,16 @@ export default function Home() {
   const { user } = useAuth();
   const { profile, updateProfile } = useProfile();
   
+  // Debug mode - toggle with localStorage for filtering diagnostics
+  const [debugMode] = useState(() => localStorage.getItem("nearish_debug") === "true");
+  
   const { 
     latitude, 
     longitude, 
     loading: geoLoading, 
     error: geoError,
     source: locationSource,
+    zipCode: activeZipCode,
     setManualLocation,
     refreshLocation,
   } = useGeolocation();
@@ -163,9 +167,9 @@ export default function Home() {
     loadSavedZipLocation();
   }, [profile?.zip_code]);
 
-  const handleLocationChange = (lat: number, lng: number, source: "zip" | "gps") => {
+  const handleLocationChange = (lat: number, lng: number, source: "zip" | "gps", zipCode?: string) => {
     if (source === "zip") {
-      setManualLocation(lat, lng, "zip");
+      setManualLocation(lat, lng, "zip", zipCode);
     }
   };
 
@@ -192,7 +196,7 @@ export default function Home() {
   // Fetch real finds
   const { finds } = useFinds();
   
-  // Fetch real photos for markets
+  // Fetch real photos for markets (including photo_reference for Google markets)
   const photoMap = useMarketPhotos(
     markets.map((m) => ({
       id: m.id,
@@ -201,6 +205,7 @@ export default function Home() {
       lat: m.lat,
       lng: m.lng,
       photo_url: m.photo_url,
+      photo_reference: m.photo_reference,
     }))
   );
   
@@ -224,11 +229,22 @@ export default function Home() {
     
     const sorted = marketsWithDistance.sort((a, b) => a.distanceMiles - b.distanceMiles);
     
+    // Debug logging for filtered markets
+    if (debugMode) {
+      const filteredOut = sorted.filter((m) => m.distanceMiles > radius);
+      if (filteredOut.length > 0) {
+        console.log(`[DEBUG] Markets filtered out (>${radius}mi):`, 
+          filteredOut.slice(0, 10).map(m => `${m.name} (${m.distanceMiles.toFixed(1)}mi)`)
+        );
+      }
+      console.log(`[DEBUG] Total markets: ${sorted.length}, Within ${radius}mi: ${sorted.filter(m => m.distanceMiles <= radius).length}`);
+    }
+    
     return {
       nearbyMarkets: sorted.filter((m) => m.distanceMiles <= 5).slice(0, 15),
       furtherOutMarkets: sorted.filter((m) => m.distanceMiles > 5 && m.distanceMiles <= radius).slice(0, 15),
     };
-  }, [markets, latitude, longitude, radius, photoMap]);
+  }, [markets, latitude, longitude, radius, photoMap, debugMode]);
   
   // Use real finds or fallback to mocks
   const displayFinds = finds.length > 0 
@@ -343,6 +359,16 @@ export default function Home() {
             action={{ label: "See all", onClick: () => navigate("/map?filter=nearby") }}
             extra={
               <div className="flex items-center gap-2">
+                {/* Location indicator */}
+                {locationSource && (
+                  <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                    {locationSource === "zip" && activeZipCode
+                      ? `📍 ${activeZipCode}`
+                      : locationSource === "gps"
+                      ? "📍 GPS"
+                      : "📍 Manual"}
+                  </span>
+                )}
                 <RadiusSelector
                   value={radius}
                   onChange={(r: ProximityRadius) => setRadius(r)}
