@@ -419,6 +419,7 @@ export function useCombinedMarkets(
   });
 
   const isLoading = dbMarkets.isLoading || nearbyMarkets.isLoading;
+  const isFetching = dbMarkets.isFetching || nearbyMarkets.isFetching;
   const error = dbMarkets.error || nearbyMarkets.error;
 
   // Apply diet and category filters to nearby markets client-side
@@ -450,6 +451,7 @@ export function useCombinedMarkets(
   return {
     data: markets,
     isLoading,
+    isFetching,
     error,
     refetch: async () => {
       await Promise.all([dbMarkets.refetch(), nearbyMarkets.refetch()]);
