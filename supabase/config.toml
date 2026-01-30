@@ -3,8 +3,14 @@ project_id = "kbbtcglqbavwuucxuywi"
 [functions.nearby-markets]
 verify_jwt = false
 
+[functions.nearby-google-places]
+verify_jwt = false
+
 [functions.send-push-notification]
 verify_jwt = false
 
 [functions.geocode]
+verify_jwt = false
+
+[functions.market-photo]
 verify_jwt = false
