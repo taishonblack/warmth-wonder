@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapPin, Loader2 } from "lucide-react";
 import { SearchBar } from "@/components/SearchBar";
@@ -8,13 +8,13 @@ import { MasonryFindItem } from "@/components/MasonryFindItem";
 import { SectionHeader } from "@/components/SectionHeader";
 import { FindDetailPopup } from "@/components/FindDetailPopup";
 import { MarketDetailPopup } from "@/components/MarketDetailPopup";
-import { DietFilterBar, DietFilters } from "@/components/DietFilterBar";
-import { CategoryFilterBar, CategoryFilters } from "@/components/CategoryFilterBar";
+import { DietFilterBar } from "@/components/DietFilterBar";
+import { CategoryFilterBar } from "@/components/CategoryFilterBar";
 import { ClaimMarketModal } from "@/components/ClaimMarketModal";
 import { LocationControl } from "@/components/LocationControl";
-import { useGeolocation } from "@/hooks/useGeolocation";
+import { useMarketContext, DisplayMarket } from "@/contexts/MarketContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useCombinedMarkets, calculateDistance, Market } from "@/hooks/useMarkets";
+import { Market } from "@/hooks/useMarkets";
 import { useFinds } from "@/hooks/useFinds";
 import { useMarketPhotos } from "@/hooks/useMarketPhoto";
 import { useReverseGeocode } from "@/hooks/useReverseGeocode";
@@ -23,7 +23,6 @@ import { useAuth } from "@/hooks/useAuth";
 
 // Import images
 import nearishLogo from "@/assets/nearish-logo.png";
-import market1 from "@/assets/market-1.jpg";
 import find1 from "@/assets/find-1.jpg";
 import find2 from "@/assets/find-2.jpg";
 import find3 from "@/assets/find-3.jpg";
@@ -95,44 +94,36 @@ const mockFinds = [
   },
 ];
 
-interface HomeMarket extends Market {
-  image: string;
-  distanceMiles?: number;
-}
-
 export default function Home() {
   const navigate = useNavigate();
   const [selectedFind, setSelectedFind] = useState<typeof mockFinds[0] & { posterId?: string } | null>(null);
-  const [selectedMarket, setSelectedMarket] = useState<HomeMarket | null>(null);
+  const [selectedMarket, setSelectedMarket] = useState<DisplayMarket | null>(null);
   const [claimingMarket, setClaimingMarket] = useState<Market | null>(null);
-  const [dietFilters, setDietFilters] = useState<DietFilters>({
-    organic: false,
-    veganFriendly: false,
-    glutenFree: false,
-  });
-  const [categoryFilters, setCategoryFilters] = useState<CategoryFilters>({
-    farmers_market: false,
-    farm_stand: false,
-    bakery: false,
-    organic_grocery: false,
-  });
   
   const { user } = useAuth();
   const { profile, updateProfile } = useProfile();
   
-  // Debug mode - toggle with localStorage for filtering diagnostics
-  const [debugMode] = useState(() => localStorage.getItem("nearish_debug") === "true");
-  
-  const { 
-    latitude, 
-    longitude, 
-    loading: geoLoading, 
-    error: geoError,
-    source: locationSource,
-    zipCode: activeZipCode,
+  // Use shared market context
+  const {
+    latitude,
+    longitude,
+    geoLoading,
+    geoError,
+    locationSource,
+    activeZipCode,
     setManualLocation,
     refreshLocation,
-  } = useGeolocation();
+    canonicalMarkets,
+    nearbyMarkets,
+    furtherMarkets,
+    isLoading,
+    dietFilters,
+    setDietFilters,
+    categoryFilters,
+    setCategoryFilters,
+    setPhotoMap,
+  } = useMarketContext();
+  
   const isMobile = useIsMobile();
   const { location: locationInfo, isLoading: locationLoading } = useReverseGeocode(latitude, longitude);
 
@@ -141,7 +132,6 @@ export default function Home() {
     const loadSavedZipLocation = async () => {
       if (profile?.zip_code && !latitude && !longitude) {
         try {
-          // Use edge function to proxy geocoding requests (avoids CORS)
           const response = await fetch(
             `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/geocode?type=forward&postalcode=${profile.zip_code}&country=US`,
             {
@@ -177,47 +167,13 @@ export default function Home() {
   const handleUseGps = () => {
     refreshLocation();
   };
-  // Fixed radius: 25 miles to fetch enough data for both Near (≤5mi) and Further (>5mi)
-  const FETCH_RADIUS_METERS = 25 * 1609;
-  
-  // Track the location used for the current market query to prevent stale data flash
-  const [lastFetchedLocation, setLastFetchedLocation] = useState<{lat: number, lng: number} | null>(null);
-  
-  // Fetch real market data
-  const { data: markets = [], isLoading: marketsLoading, isFetching: marketsFetching } = useCombinedMarkets(
-    latitude,
-    longitude,
-    undefined,
-    FETCH_RADIUS_METERS,
-    dietFilters,
-    categoryFilters
-  );
-  
-  // Update last fetched location when markets finish loading
-  useEffect(() => {
-    if (!marketsLoading && !marketsFetching && latitude && longitude && markets.length > 0) {
-      setLastFetchedLocation({ lat: latitude, lng: longitude });
-    }
-  }, [marketsLoading, marketsFetching, latitude, longitude, markets.length]);
-  
-  // Check if current location matches fetched data (prevents stale data flash)
-  const locationMatchesFetchedData = useMemo(() => {
-    if (!lastFetchedLocation || !latitude || !longitude) return false;
-    // Allow small tolerance for floating point comparison
-    return Math.abs(lastFetchedLocation.lat - latitude) < 0.001 && 
-           Math.abs(lastFetchedLocation.lng - longitude) < 0.001;
-  }, [lastFetchedLocation, latitude, longitude]);
-  
-  // Show loading if geo is loading, markets are loading/fetching, or data doesn't match current location
-  const isLoadingMarkets = geoLoading || marketsLoading || marketsFetching || 
-    (markets.length > 0 && !locationMatchesFetchedData);
   
   // Fetch real finds
   const { finds } = useFinds();
   
   // Fetch real photos for markets (including photo_reference for Google markets)
   const photoMap = useMarketPhotos(
-    markets.map((m) => ({
+    canonicalMarkets.map((m) => ({
       id: m.id,
       name: m.name,
       address: m.address,
@@ -228,38 +184,12 @@ export default function Home() {
     }))
   );
   
-  // Split markets: Near you (≤5 miles), Further (>5 miles)
-  const { nearbyMarkets, furtherOutMarkets } = useMemo(() => {
-    if (!latitude || !longitude) {
-      return { 
-        nearbyMarkets: markets.slice(0, 6).map((m) => ({
-          ...m,
-          image: photoMap.get(m.id) || m.photo_url || market1,
-        })), 
-        furtherOutMarkets: [] 
-      };
+  // Sync photo map to context so Map page can use same images
+  useEffect(() => {
+    if (photoMap.size > 0) {
+      setPhotoMap(photoMap);
     }
-    
-    const marketsWithDistance = markets.map((m) => ({
-      ...m,
-      distanceMiles: calculateDistance(latitude, longitude, m.lat, m.lng),
-      image: photoMap.get(m.id) || m.photo_url || market1,
-    }));
-    
-    const sorted = marketsWithDistance.sort((a, b) => a.distanceMiles - b.distanceMiles);
-    
-    // Debug logging for filtered markets
-    if (debugMode) {
-      console.log(`[DEBUG] Total markets: ${sorted.length}`);
-      console.log(`[DEBUG] Near you (≤5mi): ${sorted.filter(m => m.distanceMiles <= 5).length}`);
-      console.log(`[DEBUG] Further (>5mi): ${sorted.filter(m => m.distanceMiles > 5).length}`);
-    }
-    
-    return {
-      nearbyMarkets: sorted.filter((m) => m.distanceMiles <= 5).slice(0, 15),
-      furtherOutMarkets: sorted.filter((m) => m.distanceMiles > 5).slice(0, 15),
-    };
-  }, [markets, latitude, longitude, photoMap, debugMode]);
+  }, [photoMap, setPhotoMap]);
   
   // Use real finds or fallback to mocks
   const displayFinds = finds.length > 0 
@@ -276,7 +206,7 @@ export default function Home() {
       }))
     : mockFinds.map(f => ({ ...f, posterId: undefined }));
 
-  const handleMarketClick = (market: HomeMarket) => {
+  const handleMarketClick = (market: DisplayMarket) => {
     // Navigate to market detail page if it's a DB market, otherwise show popup
     if (market.source === "db") {
       navigate(`/market/${market.id}`);
@@ -360,7 +290,7 @@ export default function Home() {
         </section>
 
         {/* Loading State - show during initial load OR when location changes */}
-        {isLoadingMarkets && (
+        {isLoading && (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
             <span className="ml-2 text-muted-foreground">Finding markets near you...</span>
@@ -368,7 +298,7 @@ export default function Home() {
         )}
 
         {/* Near You Section - only show when data is ready and matches current location */}
-        {!isLoadingMarkets && (
+        {!isLoading && (
           <section>
             <SectionHeader
               title="Near you"
@@ -390,9 +320,9 @@ export default function Home() {
                     onUseGps={handleUseGps}
                     onSaveZipCode={user ? handleSaveZipCode : undefined}
                     isLoading={geoLoading}
-                    currentSource={locationSource}
+                    currentSource={locationSource === "default" ? null : locationSource}
                     savedZipCode={profile?.zip_code}
-                    currentZipCode={activeZipCode}
+                    currentZipCode={activeZipCode ?? undefined}
                   />
                 </div>
               }
@@ -413,7 +343,7 @@ export default function Home() {
         )}
 
         {/* Further Out Section - only show when data is ready */}
-        {!isLoadingMarkets && furtherOutMarkets.length > 0 && (
+        {!isLoading && furtherMarkets.length > 0 && (
           <section>
             <SectionHeader
               title={`Further out (5+ mi)`}
@@ -421,7 +351,7 @@ export default function Home() {
               className="mb-3"
             />
             <MarketCarousel
-              markets={furtherOutMarkets}
+              markets={furtherMarkets}
               onMarketClick={handleMarketClick}
               showAllLink="/map?filter=further"
             />
@@ -463,112 +393,30 @@ export default function Home() {
       />
 
       {/* Market Detail Popup - Enhanced with claim option */}
-      {selectedMarket && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
-            onClick={() => setSelectedMarket(null)}
-          />
-          <div className="relative w-full max-w-lg bg-card rounded-t-3xl animate-slide-up overflow-hidden max-h-[85vh]">
-            <button
-              onClick={() => setSelectedMarket(null)}
-              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
-            >
-              <span className="sr-only">Close</span>
-              ✕
-            </button>
-
-            <div className="relative aspect-video">
-              <img
-                src={selectedMarket.image}
-                alt={selectedMarket.name}
-                className="w-full h-full object-cover"
-              />
-              {selectedMarket.source === "osm" && (
-                <span className="absolute top-4 left-4 px-3 py-1 text-xs font-medium rounded-full bg-secondary text-secondary-foreground">
-                  Community Verified
-                </span>
-              )}
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div>
-                <h2 className="text-xl font-semibold text-foreground">
-                  {selectedMarket.name}
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-                  <MapPin className="w-4 h-4" />
-                  {selectedMarket.address}, {selectedMarket.city}
-                </p>
-              </div>
-
-              {/* Diet badges */}
-              <div className="flex flex-wrap gap-2">
-                {selectedMarket.organic && (
-                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/20 text-primary">
-                    🌿 Organic
-                  </span>
-                )}
-                {selectedMarket.vegan_friendly && (
-                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/20 text-primary">
-                    💚 Vegan-Friendly
-                  </span>
-                )}
-                {selectedMarket.gluten_free && (
-                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/20 text-primary">
-                    🌾 Gluten-Free
-                  </span>
-                )}
-              </div>
-
-              {selectedMarket.hours && (
-                <p className="text-sm text-muted-foreground">
-                  🕐 {selectedMarket.hours}
-                </p>
-              )}
-
-              {selectedMarket.description && (
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {selectedMarket.description}
-                </p>
-              )}
-
-              <div className="flex gap-3 pt-2">
-                {selectedMarket.source === "osm" && !selectedMarket.claimed_by && (
-                  <button
-                    onClick={handleClaimMarket}
-                    className="flex-1 py-3 bg-secondary text-secondary-foreground rounded-xl font-medium hover:bg-secondary/90 transition-colors"
-                  >
-                    Claim & Verify
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    if (selectedMarket.source === "db") {
-                      navigate(`/market/${selectedMarket.id}`);
-                    } else {
-                      navigate(`/map?market=${selectedMarket.id}`);
-                    }
-                    setSelectedMarket(null);
-                  }}
-                  className="flex-1 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:bg-primary/90 transition-colors"
-                >
-                  {selectedMarket.source === "db" ? "View Details" : "View on Map"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <MarketDetailPopup
+        isOpen={!!selectedMarket}
+        onClose={() => setSelectedMarket(null)}
+        market={selectedMarket ? {
+          id: selectedMarket.id,
+          name: selectedMarket.name,
+          image: selectedMarket.image,
+          distance: selectedMarket.distanceMiles ? `${selectedMarket.distanceMiles.toFixed(1)} mi` : undefined,
+          isOpen: selectedMarket.is_open,
+          address: `${selectedMarket.address}, ${selectedMarket.city}`,
+          hours: selectedMarket.hours ?? undefined,
+          description: selectedMarket.description ?? undefined,
+        } : null}
+        onNavigate={selectedMarket ? () => {
+          window.open(`https://www.google.com/maps/dir/?api=1&destination=${selectedMarket.lat},${selectedMarket.lng}`, '_blank');
+        } : undefined}
+      />
 
       {/* Claim Market Modal */}
       <ClaimMarketModal
         isOpen={!!claimingMarket}
         onClose={() => setClaimingMarket(null)}
         market={claimingMarket}
-        onClaimed={() => {
-          setClaimingMarket(null);
-        }}
+        onClaimed={() => setClaimingMarket(null)}
       />
     </div>
   );
