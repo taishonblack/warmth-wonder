@@ -6,7 +6,9 @@ import { MapView } from "@/components/MapView";
 import { MapSearchBar } from "@/components/MapSearchBar";
 import { DietFilterBar, DietFilters } from "@/components/DietFilterBar";
 import { ClaimMarketModal } from "@/components/ClaimMarketModal";
+import { RadiusSelector } from "@/components/RadiusSelector";
 import { useGeolocation } from "@/hooks/useGeolocation";
+import { useProximitySettings, ProximityRadius } from "@/hooks/useProximitySettings";
 import { useCombinedMarkets, Market } from "@/hooks/useMarkets";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Loader2, MapPin } from "lucide-react";
@@ -23,13 +25,14 @@ export default function MapPage() {
   });
   
   const { latitude, longitude, loading: geoLoading, error: geoError } = useGeolocation();
+  const { radius, setRadius } = useProximitySettings();
   const isMobile = useIsMobile();
   
   const { 
     data: markets = [], 
     isLoading: marketsLoading,
     refetch,
-  } = useCombinedMarkets(latitude, longitude, searchQuery, 8000, dietFilters);
+  } = useCombinedMarkets(latitude, longitude, searchQuery, radius * 1609, dietFilters);
 
   const userLocation = latitude && longitude ? { lat: latitude, lng: longitude } : null;
 
@@ -83,11 +86,21 @@ export default function MapPage() {
           markets={markets}
           onMarketSelect={handleMarketSelect}
         />
-        <DietFilterBar 
-          filters={dietFilters} 
-          onChange={setDietFilters}
-          className="bg-card/90 backdrop-blur-sm rounded-xl p-2"
-        />
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <DietFilterBar 
+              filters={dietFilters} 
+              onChange={setDietFilters}
+              className="bg-card/90 backdrop-blur-sm rounded-xl p-2"
+            />
+          </div>
+          <div className="bg-card/90 backdrop-blur-sm rounded-xl p-1">
+            <RadiusSelector
+              value={radius}
+              onChange={(r: ProximityRadius) => setRadius(r)}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Location Error Banner */}
