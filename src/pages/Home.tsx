@@ -12,7 +12,8 @@ import { DietFilterBar, DietFilters } from "@/components/DietFilterBar";
 import { ClaimMarketModal } from "@/components/ClaimMarketModal";
 import { LocationControl } from "@/components/LocationControl";
 import { useGeolocation } from "@/hooks/useGeolocation";
-import { useProximitySettings } from "@/hooks/useProximitySettings";
+import { useProximitySettings, ProximityRadius } from "@/hooks/useProximitySettings";
+import { RadiusSelector } from "@/components/RadiusSelector";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useCombinedMarkets, calculateDistance, Market } from "@/hooks/useMarkets";
 import { useFinds } from "@/hooks/useFinds";
@@ -123,7 +124,7 @@ export default function Home() {
     setManualLocation,
     refreshLocation,
   } = useGeolocation();
-  const { radius } = useProximitySettings();
+  const { radius, setRadius } = useProximitySettings();
   const isMobile = useIsMobile();
   const { location: locationInfo, isLoading: locationLoading } = useReverseGeocode(latitude, longitude);
 
@@ -329,14 +330,20 @@ export default function Home() {
             title="Near you"
             action={{ label: "See all", onClick: () => navigate("/map?filter=nearby") }}
             extra={
-              <LocationControl
-                onLocationChange={handleLocationChange}
-                onUseGps={handleUseGps}
-                onSaveZipCode={user ? handleSaveZipCode : undefined}
-                isLoading={geoLoading}
-                currentSource={locationSource}
-                savedZipCode={profile?.zip_code}
-              />
+              <div className="flex items-center gap-2">
+                <RadiusSelector
+                  value={radius}
+                  onChange={(r: ProximityRadius) => setRadius(r)}
+                />
+                <LocationControl
+                  onLocationChange={handleLocationChange}
+                  onUseGps={handleUseGps}
+                  onSaveZipCode={user ? handleSaveZipCode : undefined}
+                  isLoading={geoLoading}
+                  currentSource={locationSource}
+                  savedZipCode={profile?.zip_code}
+                />
+              </div>
             }
             className="mb-3"
           />
