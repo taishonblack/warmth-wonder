@@ -326,7 +326,7 @@ function matchesCategory(market: Market, categoryFilters?: CategoryFilters): boo
   return false;
 }
 
-// Combined hook that merges DB markets with OSM + Google fallback
+// Combined hook that merges DB markets with OSM + Google in PARALLEL
 export function useCombinedMarkets(
   lat: number | null,
   lng: number | null,
@@ -337,70 +337,77 @@ export function useCombinedMarkets(
 ) {
   const dbMarkets = useMarkets(searchQuery, dietFilters);
   
-  // Single query that handles OSM + Google fallback internally
+  // Single query that fetches OSM + Google in PARALLEL for speed
   const nearbyMarkets = useQuery({
     queryKey: ["nearby-markets-combined", lat?.toFixed(2), lng?.toFixed(2), radius],
     queryFn: async (): Promise<Market[]> => {
       if (!lat || !lng) return [];
       
-      // First try OSM
-      const { data: osmData, error: osmError } = await supabase.functions.invoke<{
-        center: { lat: number; lng: number };
-        radius: number;
-        markets: Array<{
-          source: "osm";
-          source_id: string;
-          name: string;
-          lat: number;
-          lng: number;
-          category: string;
-          tags: Record<string, string>;
-          address?: { street?: string; city?: string; state?: string; zip?: string };
-          contact?: { phone?: string; website?: string };
-          opening_hours?: string;
-          confidence: number;
-          is_chain_suspected: boolean;
-        }>;
-      }>("nearby-markets", { body: { lat, lng, radius } });
+      console.log(`[useCombinedMarkets] Fetching markets in parallel for ${lat.toFixed(4)},${lng.toFixed(4)}`);
+      const startTime = Date.now();
+      
+      // Fetch OSM and Google Places in PARALLEL
+      const [osmResult, googleResult] = await Promise.allSettled([
+        supabase.functions.invoke<{
+          center: { lat: number; lng: number };
+          radius: number;
+          markets: Array<{
+            source: "osm";
+            source_id: string;
+            name: string;
+            lat: number;
+            lng: number;
+            category: string;
+            tags: Record<string, string>;
+            address?: { street?: string; city?: string; state?: string; zip?: string };
+            contact?: { phone?: string; website?: string };
+            opening_hours?: string;
+            confidence: number;
+            is_chain_suspected: boolean;
+          }>;
+        }>("nearby-markets", { body: { lat, lng, radius } }),
+        fetchGooglePlacesMarkets(lat, lng, radius),
+      ]);
 
-      if (osmError) {
-        console.error("Error fetching OSM markets:", osmError);
+      // Process OSM results
+      let osmMarkets: Market[] = [];
+      if (osmResult.status === "fulfilled" && !osmResult.value.error && osmResult.value.data?.markets) {
+        osmMarkets = osmResult.value.data.markets.map((m) => ({
+          id: m.source_id,
+          name: m.name,
+          description: null,
+          address: m.address?.street || "Address unknown",
+          city: m.address?.city || "",
+          state: m.address?.state || "",
+          zip_code: m.address?.zip || null,
+          lat: m.lat,
+          lng: m.lng,
+          type: mapCategoryToType(m.category),
+          is_open: true,
+          hours: m.opening_hours || null,
+          website: m.contact?.website || null,
+          phone: m.contact?.phone || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          source: "osm" as const,
+          confidence: m.confidence,
+          category: m.category,
+          organic: m.tags?.organic === "yes" || m.tags?.organic === "only" || m.category === "organic",
+          vegan_friendly: m.tags?.["diet:vegan"] === "yes" || m.tags?.["diet:vegetarian"] === "yes",
+          gluten_free: m.tags?.["diet:gluten_free"] === "yes",
+        }));
       }
 
-      const osmMarkets: Market[] = (osmData?.markets || []).map((m) => ({
-        id: m.source_id,
-        name: m.name,
-        description: null,
-        address: m.address?.street || "Address unknown",
-        city: m.address?.city || "",
-        state: m.address?.state || "",
-        zip_code: m.address?.zip || null,
-        lat: m.lat,
-        lng: m.lng,
-        type: mapCategoryToType(m.category),
-        is_open: true,
-        hours: m.opening_hours || null,
-        website: m.contact?.website || null,
-        phone: m.contact?.phone || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        source: "osm" as const,
-        confidence: m.confidence,
-        category: m.category,
-        organic: m.tags?.organic === "yes" || m.tags?.organic === "only" || m.category === "organic",
-        vegan_friendly: m.tags?.["diet:vegan"] === "yes" || m.tags?.["diet:vegetarian"] === "yes",
-        gluten_free: m.tags?.["diet:gluten_free"] === "yes",
-      }));
-
-      // If OSM returns fewer than 6 results, fetch from Google Places as fallback
-      let allMarkets: Market[];
-      if (osmMarkets.length < 6) {
-        console.log(`[useCombinedMarkets] OSM returned ${osmMarkets.length} results, fetching Google Places fallback`);
-        const googleMarkets = await fetchGooglePlacesMarkets(lat, lng, radius);
-        allMarkets = mergeMarkets(osmMarkets, googleMarkets);
-      } else {
-        allMarkets = osmMarkets;
+      // Process Google results
+      let googleMarkets: Market[] = [];
+      if (googleResult.status === "fulfilled") {
+        googleMarkets = googleResult.value;
       }
+
+      console.log(`[useCombinedMarkets] Got ${osmMarkets.length} OSM + ${googleMarkets.length} Google in ${Date.now() - startTime}ms`);
+
+      // Merge both sources (OSM takes precedence for duplicates)
+      const allMarkets = mergeMarkets(osmMarkets, googleMarkets);
 
       // Compute distances + sort by nearest
       const MAX_DISTANCE = radius * 1.05;

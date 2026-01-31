@@ -5,6 +5,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// 12-hour cache TTL (same as OSM)
+const TTL_HOURS = 12;
+
 // Chain stores to filter out
 const CHAIN_BLACKLIST = [
   "whole foods", "trader joe", "walmart", "target", "costco", "bj's",
@@ -101,38 +104,6 @@ async function searchNearby(
   }
 }
 
-// Text search API for finding specific named places
-async function textSearch(
-  apiKey: string,
-  query: string,
-  lat: number,
-  lng: number,
-  radius: number
-): Promise<GooglePlace[]> {
-  const url = new URL("https://maps.googleapis.com/maps/api/place/textsearch/json");
-  url.searchParams.set("query", query);
-  url.searchParams.set("location", `${lat},${lng}`);
-  url.searchParams.set("radius", radius.toString());
-  url.searchParams.set("key", apiKey);
-
-  try {
-    const res = await fetch(url.toString());
-    if (!res.ok) {
-      console.error(`[nearby-google-places] Text search API error for "${query}":`, res.status);
-      return [];
-    }
-    const data: GooglePlacesResponse = await res.json();
-    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-      console.error(`[nearby-google-places] Text search status for "${query}":`, data.status, data.error_message);
-      return [];
-    }
-    return data.results || [];
-  } catch (err) {
-    console.error(`[nearby-google-places] Text search fetch error for "${query}":`, err);
-    return [];
-  }
-}
-
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -153,6 +124,41 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Create cache key by rounding to ~1km grid (same as OSM)
+    const latKey = lat.toFixed(2);
+    const lngKey = lng.toFixed(2);
+    const cache_key = `google:${latKey}:${lngKey}:${radius}`;
+
+    console.log(`[nearby-google-places] Request for ${lat},${lng} radius=${radius}m, cache_key=${cache_key}`);
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const sb = createClient(supabaseUrl, supabaseKey);
+
+    // 1) Cache lookup in osm_cache (reusing the same table)
+    const { data: cached, error: cacheError } = await sb
+      .from("osm_cache")
+      .select("response_json, created_at")
+      .eq("cache_key", cache_key)
+      .maybeSingle();
+
+    if (cacheError) {
+      console.error("[nearby-google-places] Cache lookup error:", cacheError);
+    }
+
+    if (cached?.response_json && cached?.created_at) {
+      const ageMs = Date.now() - new Date(cached.created_at).getTime();
+      const ttlMs = TTL_HOURS * 60 * 60 * 1000;
+      
+      if (ageMs < ttlMs) {
+        console.log(`[nearby-google-places] Cache HIT, age=${Math.round(ageMs / 1000 / 60)}min`);
+        return new Response(JSON.stringify(cached.response_json), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      console.log(`[nearby-google-places] Cache expired, age=${Math.round(ageMs / 1000 / 60)}min`);
+    }
+
     const apiKey = Deno.env.get("GOOGLE_PLACES_API_KEY");
     if (!apiKey) {
       console.error("[nearby-google-places] Missing GOOGLE_PLACES_API_KEY");
@@ -162,57 +168,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[nearby-google-places] Request for ${lat},${lng} radius=${radius}m`);
-
-    // Keywords to search - optimized for indie/local markets and farm stands
+    // Consolidated keywords - fewer API calls, broader coverage
     const keywords = [
       "farmers market",
-      "farm stand",
-      "farm store",
-      "farm shop",
-      "produce farm",
-      "produce market",
-      "organic grocery",
-      "health food store",
-      "co-op grocery",
-      "greengrocer",
-      "bakery local",
-      "local farm",
-    ];
-
-    // Text searches for specific well-known local farms that might not match generic keywords
-    const textQueries = [
-      "farm fresh produce",
-      "pick your own farm",
-      "dreyer farms cranford", // Well-known local farm stand
+      "farm stand produce",
+      "organic grocery health food",
+      "local bakery artisan",
+      "farm store co-op",
     ];
 
     // Run all keyword searches in parallel
+    const startTime = Date.now();
     const keywordResults = await Promise.all(
       keywords.map((kw) => searchNearby(apiKey, lat, lng, radius, kw))
     );
-
-    // Run text searches in parallel
-    const textResults = await Promise.all(
-      textQueries.map((q) => textSearch(apiKey, q, lat, lng, radius))
-    );
+    console.log(`[nearby-google-places] API calls completed in ${Date.now() - startTime}ms`);
 
     // Flatten and dedupe by place_id
     const seenIds = new Set<string>();
     const allPlaces: GooglePlace[] = [];
 
-    // Add keyword results
     for (const results of keywordResults) {
-      for (const place of results) {
-        if (!seenIds.has(place.place_id)) {
-          seenIds.add(place.place_id);
-          allPlaces.push(place);
-        }
-      }
-    }
-
-    // Add text search results
-    for (const results of textResults) {
       for (const place of results) {
         if (!seenIds.has(place.place_id)) {
           seenIds.add(place.place_id);
@@ -224,7 +200,7 @@ Deno.serve(async (req) => {
     console.log(`[nearby-google-places] Found ${allPlaces.length} unique places before filtering`);
 
     // Filter out chains, normalize, compute distance
-    const MAX_DISTANCE = radius * 1.05; // small buffer for centroid vs edges
+    const MAX_DISTANCE = radius * 1.05;
     
     const markets: NormalizedMarket[] = allPlaces
       .filter((p) => !isChain(p.name))
@@ -246,12 +222,10 @@ Deno.serve(async (req) => {
           distance_m,
         };
       })
-      // HARD FILTER: prevent far results from leaking (e.g., NYC into NJ suburbs)
       .filter((m) => m.distance_m <= MAX_DISTANCE)
-      // Sort by nearest
       .sort((a, b) => a.distance_m - b.distance_m);
 
-    console.log(`[nearby-google-places] Returning ${markets.length} indie markets (filtered by ${radius}m radius)`);
+    console.log(`[nearby-google-places] Returning ${markets.length} indie markets`);
 
     const response = {
       center: { lat, lng },
@@ -259,6 +233,24 @@ Deno.serve(async (req) => {
       markets,
       fetched_at: new Date().toISOString(),
     };
+
+    // 2) Upsert cache
+    const { error: upsertError } = await sb.from("osm_cache").upsert(
+      {
+        cache_key,
+        center_lat: lat,
+        center_lng: lng,
+        radius_m: radius,
+        response_json: response,
+      },
+      { onConflict: "cache_key" }
+    );
+
+    if (upsertError) {
+      console.error("[nearby-google-places] Cache upsert error:", upsertError);
+    } else {
+      console.log("[nearby-google-places] Cache updated");
+    }
 
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
