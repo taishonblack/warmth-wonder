@@ -61,36 +61,77 @@ interface NormalizedMarket {
   distance_m: number;
 }
 
-// Optimized: Single search with multiple types instead of multiple keyword searches
+// Search with specific keyword
 async function searchNearby(
   apiKey: string,
   lat: number,
   lng: number,
-  radius: number
+  radius: number,
+  keyword: string
 ): Promise<GooglePlace[]> {
-  // Use a single broad keyword that covers most indie markets
   const url = new URL("https://maps.googleapis.com/maps/api/place/nearbysearch/json");
   url.searchParams.set("location", `${lat},${lng}`);
   url.searchParams.set("radius", radius.toString());
-  url.searchParams.set("keyword", "farmers market farm produce organic bakery");
+  url.searchParams.set("keyword", keyword);
   url.searchParams.set("key", apiKey);
 
   try {
     const res = await fetch(url.toString());
     if (!res.ok) {
-      console.error(`[nearby-google-places] API error:`, res.status);
+      console.error(`[nearby-google-places] API error for "${keyword}":`, res.status);
       return [];
     }
     const data = await res.json();
     if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-      console.error(`[nearby-google-places] Status:`, data.status, data.error_message);
+      console.error(`[nearby-google-places] Status for "${keyword}":`, data.status, data.error_message);
       return [];
     }
     return data.results || [];
   } catch (err) {
-    console.error(`[nearby-google-places] Fetch error:`, err);
+    console.error(`[nearby-google-places] Fetch error for "${keyword}":`, err);
     return [];
   }
+}
+
+// Keywords for comprehensive coverage (run in parallel)
+const SEARCH_KEYWORDS = [
+  "farmers market",
+  "farm stand produce",
+  "organic grocery",
+  "local bakery",
+  "health food store",
+];
+
+// Fetch all keywords in parallel and dedupe
+async function fetchAllPlaces(
+  apiKey: string,
+  lat: number,
+  lng: number,
+  radius: number
+): Promise<GooglePlace[]> {
+  const startTime = Date.now();
+  
+  // Run all keyword searches in parallel
+  const results = await Promise.all(
+    SEARCH_KEYWORDS.map((kw) => searchNearby(apiKey, lat, lng, radius, kw))
+  );
+  
+  console.log(`[nearby-google-places] ${SEARCH_KEYWORDS.length} API calls completed in ${Date.now() - startTime}ms`);
+  
+  // Dedupe by place_id
+  const seen = new Set<string>();
+  const allPlaces: GooglePlace[] = [];
+  
+  for (const places of results) {
+    for (const place of places) {
+      if (!seen.has(place.place_id)) {
+        seen.add(place.place_id);
+        allPlaces.push(place);
+      }
+    }
+  }
+  
+  return allPlaces;
 }
 
 Deno.serve(async (req) => {
@@ -103,7 +144,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { lat, lng, radius = 24140 } = await req.json();
+    const { lat, lng, radius = 24140, force_refresh = false } = await req.json();
 
     if (typeof lat !== "number" || typeof lng !== "number") {
       return new Response(
@@ -122,57 +163,59 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, supabaseKey);
 
-    // Cache lookup with stale-while-revalidate pattern
-    const { data: cached } = await sb
-      .from("osm_cache")
-      .select("response_json, created_at")
-      .eq("cache_key", cache_key)
-      .maybeSingle();
+    // Skip cache if force_refresh is true
+    if (!force_refresh) {
+      // Cache lookup
+      const { data: cached } = await sb
+        .from("osm_cache")
+        .select("response_json, created_at")
+        .eq("cache_key", cache_key)
+        .maybeSingle();
 
-    // Return cached data immediately if available (even if stale)
-    const hasCachedData = cached?.response_json;
-    const ageMs = hasCachedData ? Date.now() - new Date(cached.created_at).getTime() : Infinity;
-    const ttlMs = TTL_HOURS * 60 * 60 * 1000;
-    const isStale = ageMs >= ttlMs;
+      const hasCachedData = cached?.response_json;
+      const ageMs = hasCachedData ? Date.now() - new Date(cached.created_at).getTime() : Infinity;
+      const ttlMs = TTL_HOURS * 60 * 60 * 1000;
+      const isStale = ageMs >= ttlMs;
 
-    // If cache is fresh, return immediately
-    if (hasCachedData && !isStale) {
-      console.log(`[nearby-google-places] Cache HIT, age=${Math.round(ageMs / 1000 / 60)}min`);
-      return new Response(JSON.stringify(cached.response_json), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // If cache is fresh, return immediately
+      if (hasCachedData && !isStale) {
+        console.log(`[nearby-google-places] Cache HIT, age=${Math.round(ageMs / 1000 / 60)}min`);
+        return new Response(JSON.stringify(cached.response_json), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // If cache is stale but exists, return it immediately and refresh in background
+      if (hasCachedData && isStale) {
+        console.log(`[nearby-google-places] Returning stale cache, refreshing in background`);
+        
+        // Trigger background refresh (fire and forget)
+        (async () => {
+          try {
+            const apiKey = Deno.env.get("GOOGLE_PLACES_API_KEY");
+            if (!apiKey) return;
+            
+            const places = await fetchAllPlaces(apiKey, lat, lng, radius);
+            const markets = processPlaces(places, lat, lng, radius);
+            const response = { center: { lat, lng }, radius, markets, fetched_at: new Date().toISOString() };
+            
+            await sb.from("osm_cache").upsert(
+              { cache_key, center_lat: lat, center_lng: lng, radius_m: radius, response_json: response },
+              { onConflict: "cache_key" }
+            );
+            console.log(`[nearby-google-places] Background refresh complete with ${markets.length} markets`);
+          } catch (e) {
+            console.error(`[nearby-google-places] Background refresh failed:`, e);
+          }
+        })();
+        
+        return new Response(JSON.stringify(cached.response_json), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
-    // If cache is stale but exists, return it immediately and refresh in background
-    if (hasCachedData && isStale) {
-      console.log(`[nearby-google-places] Returning stale cache, refreshing in background`);
-      
-      // Trigger background refresh (fire and forget)
-      (async () => {
-        try {
-          const apiKey = Deno.env.get("GOOGLE_PLACES_API_KEY");
-          if (!apiKey) return;
-          
-          const places = await searchNearby(apiKey, lat, lng, radius);
-          const markets = processPlaces(places, lat, lng, radius);
-          const response = { center: { lat, lng }, radius, markets, fetched_at: new Date().toISOString() };
-          
-          await sb.from("osm_cache").upsert(
-            { cache_key, center_lat: lat, center_lng: lng, radius_m: radius, response_json: response },
-            { onConflict: "cache_key" }
-          );
-          console.log(`[nearby-google-places] Background refresh complete`);
-        } catch (e) {
-          console.error(`[nearby-google-places] Background refresh failed:`, e);
-        }
-      })();
-      
-      return new Response(JSON.stringify(cached.response_json), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // No cache - must fetch fresh
+    // No cache or force_refresh - fetch fresh
     const apiKey = Deno.env.get("GOOGLE_PLACES_API_KEY");
     if (!apiKey) {
       console.error("[nearby-google-places] Missing GOOGLE_PLACES_API_KEY");
@@ -182,10 +225,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const startTime = Date.now();
-    const places = await searchNearby(apiKey, lat, lng, radius);
-    console.log(`[nearby-google-places] API call completed in ${Date.now() - startTime}ms`);
-
+    const places = await fetchAllPlaces(apiKey, lat, lng, radius);
     const markets = processPlaces(places, lat, lng, radius);
     console.log(`[nearby-google-places] Returning ${markets.length} indie markets`);
 
