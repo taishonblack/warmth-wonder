@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, MapPin, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Market, calculateDistance } from "@/hooks/useMarkets";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { MapSearchBar } from "@/components/MapSearchBar";
 
 interface MapSidePanelProps {
   markets: Market[];
@@ -56,11 +57,14 @@ export function MapSidePanel({
           isCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"
         )}
       >
-        {/* Header */}
+        {/* Search Bar */}
         <div className="p-4 border-b bg-card">
-          <h2 className="font-semibold text-lg text-foreground">Nearby Markets</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {markets.length} markets found
+          <MapSearchBar
+            markets={markets}
+            onMarketSelect={onMarketSelect}
+          />
+          <p className="text-xs text-muted-foreground mt-2">
+            {markets.length} markets nearby
           </p>
         </div>
 
