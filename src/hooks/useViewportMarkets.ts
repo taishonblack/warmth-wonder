@@ -193,6 +193,7 @@ export function useViewportMarkets(
       return allMarkets.slice(0, 150);
     },
     enabled: enabled && bounds !== null,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 30, // 30 minutes - rely on backend cache
+    gcTime: 1000 * 60 * 60, // 1 hour garbage collection
   });
 }
