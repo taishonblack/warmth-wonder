@@ -3,11 +3,6 @@ import { useCombinedMarkets, Market, DietFilters, CategoryFilters, calculateDist
 import { useGeolocation } from "@/hooks/useGeolocation";
 import market1 from "@/assets/market-1.jpg";
 
-// Build Google Places photo URL from photo_reference
-function buildGooglePhotoUrl(photoReference: string): string {
-  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/market-photo-proxy?ref=${encodeURIComponent(photoReference)}`;
-}
-
 // Market with computed fields for display
 export interface DisplayMarket extends Market {
   image: string;
@@ -104,30 +99,13 @@ export function MarketProvider({ children }: { children: ReactNode }) {
 
   const isLoading = geoLoading || marketsLoading || marketsFetching || (markets.length > 0 && !locationMatchesFetchedData);
 
-  // Helper to get image URL for a market
-  const getMarketImage = useCallback((m: Market): string => {
-    // Priority: photoMap > valid photo_url > photo_reference > fallback
-    if (photoMap.has(m.id)) return photoMap.get(m.id)!;
-    
-    // Skip photo_url if it's a raw Google API URL (has exposed key, won't work client-side)
-    // These URLs contain the API key and don't work due to referrer restrictions
-    if (m.photo_url && !m.photo_url.includes("googleapis.com")) {
-      return m.photo_url;
-    }
-    
-    // Use photo_reference through our proxy (works for both DB and Google markets)
-    if (m.photo_reference) return buildGooglePhotoUrl(m.photo_reference);
-    
-    return market1;
-  }, [photoMap]);
-
   // Split markets into near (≤5 mi) and further (>5 mi)
   const { nearbyMarkets, furtherMarkets } = useMemo(() => {
     if (!latitude || !longitude) {
       return {
         nearbyMarkets: markets.slice(0, 15).map((m) => ({
           ...m,
-          image: getMarketImage(m),
+          image: photoMap.get(m.id) || m.photo_url || market1,
         })) as DisplayMarket[],
         furtherMarkets: [] as DisplayMarket[],
       };
@@ -136,7 +114,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     const marketsWithDistance = markets.map((m) => ({
       ...m,
       distanceMiles: calculateDistance(latitude, longitude, m.lat, m.lng),
-      image: getMarketImage(m),
+      image: photoMap.get(m.id) || m.photo_url || market1,
     }));
 
     const sorted = marketsWithDistance.sort((a, b) => a.distanceMiles - b.distanceMiles);
@@ -145,7 +123,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
       nearbyMarkets: sorted.filter((m) => m.distanceMiles <= 5).slice(0, 15) as DisplayMarket[],
       furtherMarkets: sorted.filter((m) => m.distanceMiles > 5).slice(0, 15) as DisplayMarket[],
     };
-  }, [markets, latitude, longitude, getMarketImage]);
+  }, [markets, latitude, longitude, photoMap]);
 
   const handleRefetch = useCallback(async () => {
     await refetch();

@@ -422,8 +422,7 @@ export function useCombinedMarkets(
         .sort((a, b) => (a.distance_m ?? 0) - (b.distance_m ?? 0));
     },
     enabled: lat !== null && lng !== null,
-    staleTime: 1000 * 60 * 30, // 30 minutes - rely on backend cache
-    gcTime: 1000 * 60 * 60, // 1 hour garbage collection
+    staleTime: 1000 * 60 * 10,
   });
 
   const isLoading = dbMarkets.isLoading || nearbyMarkets.isLoading;
