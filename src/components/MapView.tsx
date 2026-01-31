@@ -5,12 +5,21 @@ import { Market } from "@/hooks/useMarkets";
 import { Locate } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+export interface MapBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+  center: { lat: number; lng: number };
+}
+
 interface MapViewProps {
   markets: Market[];
   selectedMarket: string | null;
   onMarketSelect: (id: string) => void;
   userLocation?: { lat: number; lng: number } | null;
   showDirections?: boolean;
+  onBoundsChange?: (bounds: MapBounds) => void;
 }
 
 const pinColors: Record<string, string> = {
@@ -25,13 +34,15 @@ export function MapView({
   selectedMarket, 
   onMarketSelect, 
   userLocation,
-  showDirections = false 
+  showDirections = false,
+  onBoundsChange,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const markers = useRef<mapboxgl.Marker[]>([]);
   const userMarker = useRef<mapboxgl.Marker | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const boundsChangeTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize map
   useEffect(() => {
@@ -81,14 +92,53 @@ export function MapView({
             "line-opacity": 0.8,
           },
         });
+        
+        // Initial bounds callback
+        if (onBoundsChange) {
+          const bounds = map.current.getBounds();
+          const center = map.current.getCenter();
+          onBoundsChange({
+            north: bounds.getNorth(),
+            south: bounds.getSouth(),
+            east: bounds.getEast(),
+            west: bounds.getWest(),
+            center: { lat: center.lat, lng: center.lng },
+          });
+        }
       }
+    });
+    
+    // Listen for map movements with debounce
+    map.current.on("moveend", () => {
+      if (!map.current || !onBoundsChange) return;
+      
+      // Debounce the bounds change callback
+      if (boundsChangeTimeout.current) {
+        clearTimeout(boundsChangeTimeout.current);
+      }
+      
+      boundsChangeTimeout.current = setTimeout(() => {
+        if (!map.current) return;
+        const bounds = map.current.getBounds();
+        const center = map.current.getCenter();
+        onBoundsChange({
+          north: bounds.getNorth(),
+          south: bounds.getSouth(),
+          east: bounds.getEast(),
+          west: bounds.getWest(),
+          center: { lat: center.lat, lng: center.lng },
+        });
+      }, 400); // 400ms debounce
     });
 
     return () => {
+      if (boundsChangeTimeout.current) {
+        clearTimeout(boundsChangeTimeout.current);
+      }
       map.current?.remove();
       map.current = null;
     };
-  }, []);
+  }, [onBoundsChange]);
 
   // Fetch and display directions
   const fetchDirections = useCallback(async (
