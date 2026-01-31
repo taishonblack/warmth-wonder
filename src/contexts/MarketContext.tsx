@@ -157,6 +157,32 @@ export function MarketProvider({ children }: { children: ReactNode }) {
 export function useMarketContext() {
   const context = useContext(MarketContext);
   if (!context) {
+    // During HMR, context may temporarily be null - provide a safe fallback
+    // This prevents crashes during hot reload while still catching real issues in production
+    if (import.meta.hot) {
+      console.warn("useMarketContext: Context not available (likely HMR), returning fallback");
+      return {
+        latitude: null,
+        longitude: null,
+        locationSource: null,
+        activeZipCode: null,
+        geoLoading: true,
+        geoError: null,
+        setManualLocation: () => {},
+        refreshLocation: () => {},
+        dietFilters: { organic: false, veganFriendly: false, glutenFree: false },
+        setDietFilters: () => {},
+        categoryFilters: { farmers_market: false, farm_stand: false, bakery: false, organic_grocery: false },
+        setCategoryFilters: () => {},
+        canonicalMarkets: [],
+        nearbyMarkets: [],
+        furtherMarkets: [],
+        isLoading: true,
+        isFetching: false,
+        setPhotoMap: () => {},
+        refetch: () => {},
+      } as MarketContextValue;
+    }
     throw new Error("useMarketContext must be used within a MarketProvider");
   }
   return context;
