@@ -106,10 +106,18 @@ export function MarketProvider({ children }: { children: ReactNode }) {
 
   // Helper to get image URL for a market
   const getMarketImage = useCallback((m: Market): string => {
-    // Priority: photoMap > photo_url > photo_reference > fallback
+    // Priority: photoMap > valid photo_url > photo_reference > fallback
     if (photoMap.has(m.id)) return photoMap.get(m.id)!;
-    if (m.photo_url) return m.photo_url;
+    
+    // Skip photo_url if it's a raw Google API URL (has exposed key, won't work client-side)
+    // These URLs contain the API key and don't work due to referrer restrictions
+    if (m.photo_url && !m.photo_url.includes("googleapis.com")) {
+      return m.photo_url;
+    }
+    
+    // Use photo_reference through our proxy (works for both DB and Google markets)
     if (m.photo_reference) return buildGooglePhotoUrl(m.photo_reference);
+    
     return market1;
   }, [photoMap]);
 
