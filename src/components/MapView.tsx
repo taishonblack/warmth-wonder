@@ -43,6 +43,12 @@ export function MapView({
   const userMarker = useRef<mapboxgl.Marker | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const boundsChangeTimeout = useRef<NodeJS.Timeout | null>(null);
+  const onBoundsChangeRef = useRef(onBoundsChange);
+  
+  // Keep ref updated with latest callback
+  useEffect(() => {
+    onBoundsChangeRef.current = onBoundsChange;
+  }, [onBoundsChange]);
 
   // Initialize map
   useEffect(() => {
@@ -94,10 +100,10 @@ export function MapView({
         });
         
         // Initial bounds callback
-        if (onBoundsChange) {
+        if (onBoundsChangeRef.current) {
           const bounds = map.current.getBounds();
           const center = map.current.getCenter();
-          onBoundsChange({
+          onBoundsChangeRef.current({
             north: bounds.getNorth(),
             south: bounds.getSouth(),
             east: bounds.getEast(),
@@ -110,7 +116,7 @@ export function MapView({
     
     // Listen for map movements with debounce
     map.current.on("moveend", () => {
-      if (!map.current || !onBoundsChange) return;
+      if (!map.current) return;
       
       // Debounce the bounds change callback
       if (boundsChangeTimeout.current) {
@@ -118,10 +124,10 @@ export function MapView({
       }
       
       boundsChangeTimeout.current = setTimeout(() => {
-        if (!map.current) return;
+        if (!map.current || !onBoundsChangeRef.current) return;
         const bounds = map.current.getBounds();
         const center = map.current.getCenter();
-        onBoundsChange({
+        onBoundsChangeRef.current({
           north: bounds.getNorth(),
           south: bounds.getSouth(),
           east: bounds.getEast(),
@@ -138,7 +144,7 @@ export function MapView({
       map.current?.remove();
       map.current = null;
     };
-  }, [onBoundsChange]);
+  }, []); // Empty deps - map only initializes once
 
   // Fetch and display directions
   const fetchDirections = useCallback(async (
